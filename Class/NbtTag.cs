@@ -15,12 +15,12 @@ public class NbtTag(
     bool isListDirectElement = false // 便于构造树形结构，避免单元素(伪)列表
 )
 {
-    public readonly Memory<byte> Bytes = owner.Slice(position.begin, position.end - position.begin + 1);
+    private readonly Memory<byte> _bytes = owner.Slice(position.begin, position.end - position.begin + 1);
     public readonly List<NbtTag> Children = children ?? [];
     public readonly NbtTagEnum ChildrenTag = childrenTag;
-    public readonly bool IsBigEndian = isBigEndian;
-    public readonly Memory<byte> Owner = owner;
-    public readonly (int begin, int end) Pos = position;
+    private readonly bool _isBigEndian = isBigEndian;
+    private readonly Memory<byte> _owner = owner;
+    private readonly (int begin, int end) _pos = position;
     public readonly NbtTagEnum Tag = tag;
     private string? _name;
     private string? _value;
@@ -30,11 +30,11 @@ public class NbtTag(
     {
         return
             $"Type:{Tag,-11} | "
-            + $"{$"Pos:({Pos.begin}, {Pos.end})",-13} | "
-            + $"Length:{$"{Pos.end - Pos.begin + 1}",-3} | "
+            + $"{$"Pos:({_pos.begin}, {_pos.end})",-13} | "
+            + $"Length:{$"{_pos.end - _pos.begin + 1}",-3} | "
             + $"ChildCount:{Children.Count} | "
             + $"ChildTag:{ChildrenTag} | "
-            + $"OwnerHashCode:{Owner.GetHashCode()}";
+            + $"OwnerHashCode:{_owner.GetHashCode()}";
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ public class NbtTag(
             var nameLength = GetNameLength();
             if (nameLength == 0) return _name; // 若名称长度为零，直接返回
 
-            var nameField = Bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
+            var nameField = _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
             _name = Encoding.ASCII.GetString(nameField);
 
             return _name;
@@ -105,19 +105,19 @@ public class NbtTag(
         var dataLengthField =
             IsListDirectElement switch
             {
-                true => Bytes.Span[..info.fieldSize],
-                false => Bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + nameLength + 1, info.fieldSize)
+                true => _bytes.Span[..info.fieldSize],
+                false => _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + nameLength + 1, info.fieldSize)
             };
 
         var dataLength = info.fieldSize switch
         {
-            2 => IsBigEndian
+            2 => _isBigEndian
                 ? BinaryPrimitives.ReadInt16BigEndian(dataLengthField)
                 : BinaryPrimitives.ReadInt16LittleEndian(dataLengthField),
-            4 => IsBigEndian
+            4 => _isBigEndian
                 ? BinaryPrimitives.ReadInt32BigEndian(dataLengthField)
                 : BinaryPrimitives.ReadInt32LittleEndian(dataLengthField),
-            _ => throw new Exception($"未知标签! ({Pos.begin},{Pos.end})") // 正常不可能报错
+            _ => throw new Exception($"未知标签! ({_pos.begin},{_pos.end})") // 正常不可能报错
         };
 
         if (dataLength == 0) return ""; // 长度为零，则直接返回空字符串
@@ -127,7 +127,7 @@ public class NbtTag(
             true => info.fieldSize, // 列表<动态负载长度>中，元素没有名称，但存储了长度 (差别: 见 ParseConstValue 方法)
             false => NbtGlobal.NameLengthFieldSize + info.fieldSize + nameLength + 1
         };
-        var data = Bytes.Span.Slice(dataBegin,
+        var data = _bytes.Span.Slice(dataBegin,
             dataLength * info.dataLengthMulti ?? throw new Exception($"动态负载长度标签[{Tag}]没有在[NbtGlobal]中标记负载长度倍率!"));
 
         // 数据处理
@@ -157,7 +157,7 @@ public class NbtTag(
             for (var i = 0; i < bytes.Length; i += length)
             {
                 var singleLong = bytes.Slice(i, length);
-                elements[i / length] = IsBigEndian switch
+                elements[i / length] = _isBigEndian switch
                 {
                     true => length == 4
                         ? BinaryPrimitives.ReadInt32BigEndian(singleLong)
@@ -189,23 +189,23 @@ public class NbtTag(
             true => 0, // 列表<静态负载长度>中，元素名称、长度均不存储 (差别: 见 ParseDynamicValue 方法)
             false => NbtGlobal.NameLengthFieldSize + nameLength + 1
         };
-        var data = Bytes.Span.Slice(dataBegin, info.fieldSize);
+        var data = _bytes.Span.Slice(dataBegin, info.fieldSize);
         return Tag switch
         {
             NbtTagEnum.Byte => data[0].ToString(),
-            NbtTagEnum.Short => IsBigEndian
+            NbtTagEnum.Short => _isBigEndian
                 ? BinaryPrimitives.ReadInt16BigEndian(data).ToString()
                 : BinaryPrimitives.ReadInt16LittleEndian(data).ToString(),
-            NbtTagEnum.Int => IsBigEndian
+            NbtTagEnum.Int => _isBigEndian
                 ? BinaryPrimitives.ReadInt32BigEndian(data).ToString()
                 : BinaryPrimitives.ReadInt32LittleEndian(data).ToString(),
-            NbtTagEnum.Long => IsBigEndian
+            NbtTagEnum.Long => _isBigEndian
                 ? BinaryPrimitives.ReadInt64BigEndian(data).ToString()
                 : BinaryPrimitives.ReadInt64LittleEndian(data).ToString(),
-            NbtTagEnum.Float => IsBigEndian
+            NbtTagEnum.Float => _isBigEndian
                 ? BinaryPrimitives.ReadSingleBigEndian(data).ToString()
                 : BinaryPrimitives.ReadSingleLittleEndian(data).ToString(),
-            NbtTagEnum.Double => IsBigEndian
+            NbtTagEnum.Double => _isBigEndian
                 ? BinaryPrimitives.ReadDoubleBigEndian(data).ToString()
                 : BinaryPrimitives.ReadDoubleLittleEndian(data).ToString(),
             _ => throw new Exception("非静态负载长度")
@@ -219,8 +219,8 @@ public class NbtTag(
     private int GetNameLength()
     {
         if (IsListDirectElement) return 0; // 列表元素没有名称
-        var nameLengthField = Bytes.Span.Slice(1, NbtGlobal.NameLengthFieldSize);
-        return IsBigEndian switch
+        var nameLengthField = _bytes.Span.Slice(1, NbtGlobal.NameLengthFieldSize);
+        return _isBigEndian switch
         {
             true => BinaryPrimitives.ReadInt16BigEndian(nameLengthField),
             false => BinaryPrimitives.ReadInt16LittleEndian(nameLengthField)
@@ -286,6 +286,6 @@ public class NbtTag(
     /// <returns>新的 NBT 标签实例</returns>
     public NbtTag ReassembleChildren(List<NbtTag> children)
     {
-        return new NbtTag(Tag, Pos, Owner, IsBigEndian, children, ChildrenTag, IsListDirectElement);
+        return new NbtTag(Tag, _pos, _owner, _isBigEndian, children, ChildrenTag, IsListDirectElement);
     }
 }
