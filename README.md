@@ -52,7 +52,7 @@ private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
 treeTag.PrintTree();
 ```
 
-# Get NBT tag data
+## Get NBT tag data
 
 The **NbtTag** object have 3 public attribute:
 ```Cs
