@@ -4,7 +4,7 @@ This is a tool that helps loading & construct tree-structured Minecraft NBT file
 
 # Process
 
-- ✅ Loading
+- ✅ Serialize
 - ✅ Construct Tree-structured
 - ⬜ Change
 - ⬜ Delete
