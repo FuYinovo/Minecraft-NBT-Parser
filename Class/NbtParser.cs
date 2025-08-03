@@ -28,6 +28,9 @@ public class NbtParser
     /// <summary>
     ///     构建 NBT 标签树形结构
     /// </summary>
+    /// <remarks>
+    /// 字典的结束标签将被保留为最后一个子元素
+    /// </remarks>
     /// <param name="tags">一个包含 End 标签的原始 NBT 标签列表</param>
     /// <returns>一个树形结构的 NBT 标签</returns>
     private static NbtTag ConstructTagTree(ref List<NbtTag> tags)
@@ -45,6 +48,7 @@ public class NbtParser
                     continue;
                 case NbtTagEnum.End:
                 {
+                    stack.Peek().Children.Add(tag);
                     if (stack.Count == 1) return stack.Peek(); // 栈内仅剩的1个元素时，其为最终结果
                     var completedTag = stack.Pop();
                     stack.Peek().Children.Add(completedTag);
@@ -61,6 +65,9 @@ public class NbtParser
     /// <summary>
     ///     构建列表 NBT 标签属性结构
     /// </summary>
+    /// <remarks>
+    /// 字典的结束标签将被保留为最后一个子元素
+    /// </remarks>
     /// <param name="listTag">列表 NBT 标签</param>
     /// <returns>一个树形结构的新列表 NBT 标签</returns>
     private static NbtTag ConstructListTagTree(NbtTag listTag)
@@ -74,6 +81,7 @@ public class NbtParser
                     stack.Peek().Children.Add(ConstructListTagTree(child));
                     continue;
                 case NbtTagEnum.End:
+                    stack.Peek().Children.Add(child);
                     if (child.IsListDirectElement) continue;
                     var completedTag = stack.Pop();
                     stack.Peek().Children.Add(completedTag);
