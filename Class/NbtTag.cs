@@ -8,12 +8,13 @@ namespace NBT_Parser.Class;
 
 public class NbtTag
 {
-    private readonly Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
     private readonly bool _isBigEndian;
-    public readonly NbtTagEnum ChildrenTag;
-    public readonly NbtTagEnum Tag;
+    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
     private string? _name;
     private object? _value;
+    private bool _isChanged;
+    public readonly NbtTagEnum ChildrenTag;
+    public readonly NbtTagEnum Tag;
     public List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
 
@@ -34,8 +35,17 @@ public class NbtTag
         _isBigEndian = isBigEndian;
         Tag = tag;
         IsListDirectElement = isListDirectElement;
-        _name = GetName();
-        _value = GetValue();
+
+        _name = Tag switch
+        {
+            NbtTagEnum.End => null,
+            _ => IsListDirectElement ? null : ParseName()
+        };
+        _value = Tag switch
+        {
+            NbtTagEnum.End or NbtTagEnum.Dictionary or NbtTagEnum.List => null,
+            _ => ParseValue()
+        };
     }
 
     /// <summary>
@@ -57,6 +67,7 @@ public class NbtTag
         _isBigEndian = isBigEndian;
         Tag = tag;
         IsListDirectElement = isListDirectElement;
+        _isChanged = true;
     }
 
     /// <summary>
@@ -64,17 +75,7 @@ public class NbtTag
     /// </summary>
     public string? GetName()
     {
-        try
-        {
-            if (_name is not null) return _name;
-            if (IsListDirectElement) return null; // 列表元素没有名称
-            _name = ParseName();
-            return _name;
-        }
-        catch (Exception e)
-        {
-            return e.GetType().ToString();
-        }
+        return _name;
     }
 
     /// <summary>
@@ -85,27 +86,13 @@ public class NbtTag
     ///  </code>
     public object? GetValue()
     {
-        try
+        return Tag switch
         {
-            if (_value is not null)
-                return Tag switch
-                {
-                    NbtTagEnum.Float => float.Parse(_value.ToString() ?? string.Empty),
-                    NbtTagEnum.Double =>
-                        double.Parse(_value.ToString() ?? string.Empty),
-                    _ => _value
-                };
-            if (Tag is NbtTagEnum.Dictionary or NbtTagEnum.List) return null; // 列表或字典只有子元素，没有值
-            return NbtGlobal.ByteToInfo[(byte)Tag].isDynamic switch
-            {
-                true => ParseDynamicValue(),
-                false => ParseConstValue()
-            };
-        }
-        catch (Exception e)
-        {
-            return e.GetType().ToString();
-        }
+            NbtTagEnum.Float => float.Parse(_value?.ToString() ?? string.Empty),
+            NbtTagEnum.Double =>
+                double.Parse(_value?.ToString() ?? string.Empty),
+            _ => _value
+        };
     }
 
     /// <summary>
@@ -114,6 +101,7 @@ public class NbtTag
     public void SetName(string name)
     {
         _name = name;
+        _isChanged = true;
     }
 
     /// <summary>
@@ -141,17 +129,55 @@ public class NbtTag
                 _value = value;
                 break;
         }
+
+        _isChanged = true;
     }
+
+    public byte[] GetBytesTree()
+    {
+        var bytes = _bytes.ToArray().ToList();
+        if (Tag is NbtTagEnum.Dictionary && IsListDirectElement) bytes.Clear();
+        foreach (var child in Children)
+        {
+            bytes.AddRange(child.GetBytesTree());
+        }
+
+        return bytes.ToArray();
+    }
+
 
     /// <summary>
     /// 解析标签名称
     /// </summary>
     private string ParseName()
     {
-        var nameLength = GetNameLength();
-        if (nameLength == 0) return string.Empty; // 若名称长度为零，返回空白
-        var nameField = _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
-        return Encoding.UTF8.GetString(nameField);
+        try
+        {
+            var nameLength = GetNameLength();
+            if (nameLength == 0) return string.Empty; // 若名称长度为零，返回空白
+            var nameField = _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
+            return Encoding.UTF8.GetString(nameField);
+        }
+        catch (Exception)
+        {
+            return Tag.ToString();
+        }
+    }
+
+    private object ParseValue()
+    {
+        try
+        {
+            return NbtGlobal.ByteToInfo[(byte)Tag].isDynamic switch
+            {
+                true => ParseDynamicValue(),
+                false => ParseConstValue()
+            };
+        }
+        catch (Exception e)
+        {
+            return e.GetType().ToString();
+        }
     }
 
     /// <summary>
@@ -296,6 +322,8 @@ public class NbtTag
     /// <remarks>请忽略参数</remarks>
     public void PrintTree(string indent = "", bool isLast = true)
     {
+        if (Tag == NbtTagEnum.End) return;
+
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.Write(indent);
         if (isLast)
@@ -346,4 +374,3 @@ public class NbtTag
         }
     }
 }
-

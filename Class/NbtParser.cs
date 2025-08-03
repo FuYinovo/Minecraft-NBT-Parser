@@ -95,6 +95,7 @@ public class NbtParser
             }
 
         listTag.Children = stack.ToList();
+        listTag.Children.Reverse();
         return listTag;
     }
 
@@ -238,7 +239,7 @@ public class NbtParser
         offset += NbtGlobal.ListElementCountFieldSize;
 
         var elements = ParseListElements(ref offset, elementsTag, elementsCount);
-        var length = NbtGlobal.NameLengthFieldSize + nameLength + 5;
+        var length = NbtGlobal.NameLengthFieldSize + nameLength + 6;
         return BuildTag(NbtTagEnum.List, begin, length, isListDirectItem, elementsTag, elements);
     }
 
