@@ -29,7 +29,7 @@ public class NbtParser
     ///     构建 NBT 标签树形结构
     /// </summary>
     /// <remarks>
-    /// 字典的结束标签将被保留为最后一个子元素
+    ///     字典的结束标签将被保留为最后一个子元素
     /// </remarks>
     /// <param name="tags">一个包含 End 标签的原始 NBT 标签列表</param>
     /// <returns>一个树形结构的 NBT 标签</returns>
@@ -66,7 +66,7 @@ public class NbtParser
     ///     构建列表 NBT 标签属性结构
     /// </summary>
     /// <remarks>
-    /// 字典的结束标签将被保留为最后一个子元素
+    ///     字典的结束标签将被保留为最后一个子元素
     /// </remarks>
     /// <param name="listTag">列表 NBT 标签</param>
     /// <returns>一个树形结构的新列表 NBT 标签</returns>

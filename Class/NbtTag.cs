@@ -9,17 +9,17 @@ namespace NBT_Parser.Class;
 public class NbtTag
 {
     private readonly bool _isBigEndian;
-    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
-    private string? _name;
-    private object? _value;
-    private bool _isChanged;
     public readonly NbtTagEnum ChildrenTag;
     public readonly NbtTagEnum Tag;
+    private readonly Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
+    private bool _isChanged;
+    private string? _name;
+    private object? _value;
     public List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
 
     /// <summary>
-    /// 由字节集合构造 NBT 标签
+    ///     由字节集合构造 NBT 标签
     /// </summary>
     /// <remarks>请使用 NBT_Parser.Class.NbtTagBuilder 构造 NBT 标签</remarks>
     public NbtTag(NbtTagEnum tag,
@@ -49,7 +49,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 由名称、值构造 NBT 标签
+    ///     由名称、值构造 NBT 标签
     /// </summary>
     /// <remarks>请使用 NBT_Parser.Class.NbtTagBuilder 构造 NBT 标签</remarks>
     public NbtTag(NbtTagEnum tag,
@@ -96,7 +96,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 设置标签名称
+    ///     设置标签名称
     /// </summary>
     public void SetName(string name)
     {
@@ -105,7 +105,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 设置标签值
+    ///     设置标签值
     /// </summary>
     /// <exception cref="InvalidCastException">非法值</exception>
     public void SetValue(object value)
@@ -133,21 +133,22 @@ public class NbtTag
         _isChanged = true;
     }
 
+    /// <summary>
+    ///     以自身为根节点，获取自身及所有子元素的字节集合
+    /// </summary>
+    /// <remarks>可直接保存为 NBT 文件</remarks>
     public byte[] GetBytesTree()
     {
         var bytes = _bytes.ToArray().ToList();
         if (Tag is NbtTagEnum.Dictionary && IsListDirectElement) bytes.Clear();
-        foreach (var child in Children)
-        {
-            bytes.AddRange(child.GetBytesTree());
-        }
+        foreach (var child in Children) bytes.AddRange(child.GetBytesTree());
 
         return bytes.ToArray();
     }
 
 
     /// <summary>
-    /// 解析标签名称
+    ///     解析标签名称
     /// </summary>
     private string ParseName()
     {
@@ -370,7 +371,7 @@ public class NbtTag
                 _ => _value.ToString()
             };
             valueString ??= "";
-            Console.WriteLine(valueString.Length <= 50 ? valueString : (valueString[..50]) + " ...");
+            Console.WriteLine(valueString.Length <= 50 ? valueString : valueString[..50] + " ...");
         }
     }
 }
