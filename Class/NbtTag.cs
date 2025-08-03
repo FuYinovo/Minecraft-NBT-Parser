@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Collections;
 using System.Text;
 using NBT_Parser.Enum;
 using NBT_Parser.Record;
@@ -37,21 +38,13 @@ public class NbtTag
     ///     获取标签名称
     /// </summary>
     /// <returns>名称的字符串</returns>
-    public string GetName()
+    public string? GetName()
     {
         try
         {
             if (_name is not null) return _name;
-            _name = string.Empty;
-
-            if (IsListDirectElement) return _name; // 列表元素没有名称
-
-            var nameLength = GetNameLength();
-            if (nameLength == 0) return _name; // 若名称长度为零，直接返回
-
-            var nameField = _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
-            _name = Encoding.UTF8.GetString(nameField);
-
+            if (IsListDirectElement) return null; // 列表元素没有名称
+            _name = ParseName();
             return _name;
         }
         catch (Exception e)
@@ -71,8 +64,14 @@ public class NbtTag
     {
         try
         {
-            if (_value is not null) return _value;
-
+            if (_value is not null)
+                return Tag switch
+                {
+                    NbtTagEnum.Float => float.Parse(_value.ToString() ?? string.Empty),
+                    NbtTagEnum.Double =>
+                        double.Parse(_value.ToString() ?? string.Empty),
+                    _ => _value
+                };
             if (Tag is NbtTagEnum.Dictionary or NbtTagEnum.List) return null; // 列表或字典只有子元素，没有值
             return NbtGlobal.ByteToInfo[(byte)Tag].isDynamic switch
             {
@@ -84,6 +83,42 @@ public class NbtTag
         {
             return e.GetType().ToString();
         }
+    }
+
+    public void SetName(string name)
+    {
+        _name = name;
+    }
+
+    public void SetValue(object value)
+    {
+        var validDataType = NbtGlobal.ByteToInfo[(byte)Tag].dataType;
+        switch (value)
+        {
+            case IEnumerable enumerable:
+                // 检查合法性
+                var array = enumerable.Cast<object>().ToArray();
+                if (array.GetType() != validDataType)
+                    throw new InvalidCastException($"[{Tag}]的值不能设为{array.GetType()}!");
+                // 设置值
+                _value = array;
+                break;
+            default:
+                // 检查合法性
+                if (value.GetType() != validDataType)
+                    throw new InvalidCastException($"[{Tag}]的值不能设为{value.GetType()}!");
+                // 设置值
+                _value = value;
+                break;
+        }
+    }
+
+    private string ParseName()
+    {
+        var nameLength = GetNameLength();
+        if (nameLength == 0) return string.Empty; // 若名称长度为零，返回空白
+        var nameField = _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
+        return Encoding.UTF8.GetString(nameField);
     }
 
     /// <summary>
@@ -201,11 +236,11 @@ public class NbtTag
                 ? BinaryPrimitives.ReadInt64BigEndian(data)
                 : BinaryPrimitives.ReadInt64LittleEndian(data),
             NbtTagEnum.Float => _isBigEndian
-                ? BinaryPrimitives.ReadSingleBigEndian(data)
-                : BinaryPrimitives.ReadSingleLittleEndian(data),
+                ? BinaryPrimitives.ReadSingleBigEndian(data).ToString()  // ToString() 避免精度误差
+                : BinaryPrimitives.ReadSingleLittleEndian(data).ToString(),
             NbtTagEnum.Double => _isBigEndian
-                ? BinaryPrimitives.ReadDoubleBigEndian(data)
-                : BinaryPrimitives.ReadDoubleLittleEndian(data),
+                ? BinaryPrimitives.ReadDoubleBigEndian(data).ToString()
+                : BinaryPrimitives.ReadDoubleLittleEndian(data).ToString(),
             _ => throw new Exception("非静态负载长度")
         };
     }
@@ -273,11 +308,12 @@ public class NbtTag
             var valueString = _value switch
             {
                 null => "",
-                Array => string.Join(", ", _value),
+                string => _value.ToString(),
+                IEnumerable enumerable => "[ " + string.Join(", ", enumerable.Cast<object>()) + " ]",
                 _ => _value.ToString()
             };
             valueString ??= "";
-            Console.WriteLine(valueString.Length <= 50 ? valueString : valueString[..50] + " ...");
+            Console.WriteLine(valueString.Length <= 50 ? valueString : (valueString[..50]) + " ...");
         }
     }
 }
