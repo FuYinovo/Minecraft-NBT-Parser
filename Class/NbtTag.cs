@@ -7,21 +7,21 @@ namespace NBT_Parser.Class;
 
 public class NbtTag
 {
-    public List<NbtTag> Children;
+    private readonly Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
+    private readonly bool _isBigEndian;
     public readonly NbtTagEnum ChildrenTag;
     public readonly NbtTagEnum Tag;
-    public bool IsListDirectElement;
-    private readonly Memory<byte> _bytes;
-    private readonly bool _isBigEndian;
     private string? _name;
     private string? _value;
+    public List<NbtTag> Children;
+    public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
 
     public NbtTag(NbtTagEnum tag,
         Memory<byte> bytes,
         bool isBigEndian,
         List<NbtTag>? children = null,
         NbtTagEnum childrenTag = NbtTagEnum.Unknown,
-        bool isListDirectElement = false) // 便于构造树形结构，避免单元素(伪)列表)
+        bool isListDirectElement = false)
     {
         _bytes = bytes;
         Children = children ?? [];

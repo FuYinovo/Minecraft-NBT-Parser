@@ -55,18 +55,22 @@ treeTag.PrintTree();
 ## Get NBT tag data
 
 The **NbtTag** object have 3 public attribute:
+
 ```Cs
 public readonly NbtTagEnum Tag;
 public readonly List<NbtTag> Children;
 public readonly NbtTagEnum ChildrenTag;
 ```
+
 and 2 public functions:
+
 ```Cs
 public string GetValue()
 public string GetName()
 ```
 
 So you can easily get data like this:
+
 ```csharp
 nbtTag.Children[0].GetName();
 nbtTag.Children[0].GetValue();

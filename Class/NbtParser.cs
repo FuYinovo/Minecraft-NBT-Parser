@@ -160,7 +160,7 @@ public class NbtParser
                 offset += nameLength;
                 // 字符串列表单个元素只有名称数据段
                 if (tagEnum == NbtTagEnum.String)
-                   return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
+                    return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
                 break;
             case false:
                 offset += nameLength;
@@ -231,7 +231,7 @@ public class NbtParser
 
         var elements = ParseListElements(ref offset, elementsTag, elementsCount);
         var length = NbtGlobal.NameLengthFieldSize + nameLength + 5;
-        return BuildTag(NbtTagEnum.List, begin, length , isListDirectItem, elementsTag, elements);
+        return BuildTag(NbtTagEnum.List, begin, length, isListDirectItem, elementsTag, elements);
     }
 
     /// <summary>
@@ -287,7 +287,7 @@ public class NbtParser
     }
 
     /// <summary>
-    /// 构造一个 NBT 标签实例
+    ///     构造一个 NBT 标签实例
     /// </summary>
     /// <param name="type">标签类型</param>
     /// <param name="begin">标签头部位置</param>
@@ -296,7 +296,7 @@ public class NbtParser
     /// <param name="childrenTag">子元素类型</param>
     /// <param name="children">子元素列表</param>
     /// <returns>NBT 标签实例</returns>
-    private NbtTag BuildTag(NbtTagEnum type, int begin,int length, bool isListDirectItem = false,
+    private NbtTag BuildTag(NbtTagEnum type, int begin, int length, bool isListDirectItem = false,
         NbtTagEnum childrenTag = NbtTagEnum.Unknown, List<NbtTag>? children = null)
     {
         var bytes = _bytes.AsMemory().Slice(begin, length);
