@@ -50,7 +50,7 @@ public class NbtTag
             if (nameLength == 0) return _name; // 若名称长度为零，直接返回
 
             var nameField = _bytes.Span.Slice(NbtGlobal.NameLengthFieldSize + 1, nameLength);
-            _name = Encoding.ASCII.GetString(nameField);
+            _name = Encoding.UTF8.GetString(nameField);
 
             return _name;
         }
