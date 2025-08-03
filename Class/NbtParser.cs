@@ -230,7 +230,8 @@ public class NbtParser
         offset += NbtGlobal.ListElementCountFieldSize;
 
         var elements = ParseListElements(ref offset, elementsTag, elementsCount);
-        return BuildTag(NbtTagEnum.List, begin, offset - begin + 1, isListDirectItem, elementsTag, elements);
+        var length = NbtGlobal.NameLengthFieldSize + nameLength + 5;
+        return BuildTag(NbtTagEnum.List, begin, length , isListDirectItem, elementsTag, elements);
     }
 
     /// <summary>
