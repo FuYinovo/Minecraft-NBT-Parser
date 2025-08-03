@@ -252,7 +252,8 @@ public class NbtParser
     /// <returns>一个 <see cref="NbtTag" /> 列表</returns>
     private List<NbtTag> ParseListElements(ref int offset, NbtTagEnum elementsTag, int elementsCount)
     {
-        var elements = new List<NbtTag>(elementsCount * 64);
+        // 对于列表<字典>，需要存储字典+结束标签，故2倍容量
+        var elements = new List<NbtTag>(elementsTag == NbtTagEnum.Dictionary ? elementsCount * 2: elementsCount);
         for (var i = 1; i <= elementsCount; i++)
         {
             // 列表<一般标签>的处理
