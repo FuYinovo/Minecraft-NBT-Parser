@@ -5,36 +5,32 @@ using NBT_Parser.Record;
 
 namespace NBT_Parser.Class;
 
-public class NbtTag(
-    NbtTagEnum tag,
-    (int begin, int end) position,
-    Memory<byte> owner,
-    bool isBigEndian,
-    List<NbtTag>? children = null,
-    NbtTagEnum childrenTag = NbtTagEnum.Unknown,
-    bool isListDirectElement = false // 便于构造树形结构，避免单元素(伪)列表
-)
+public class NbtTag
 {
-    private readonly Memory<byte> _bytes = owner.Slice(position.begin, position.end - position.begin + 1);
-    public readonly List<NbtTag> Children = children ?? [];
-    public readonly NbtTagEnum ChildrenTag = childrenTag;
-    private readonly bool _isBigEndian = isBigEndian;
-    private readonly Memory<byte> _owner = owner;
-    private readonly (int begin, int end) _pos = position;
-    public readonly NbtTagEnum Tag = tag;
+    public List<NbtTag> Children;
+    public readonly NbtTagEnum ChildrenTag;
+    public readonly NbtTagEnum Tag;
+    public bool IsListDirectElement;
+    private readonly Memory<byte> _bytes;
+    private readonly bool _isBigEndian;
     private string? _name;
     private string? _value;
-    public bool IsListDirectElement = isListDirectElement;
 
-    public string GetInfo()
+    public NbtTag(NbtTagEnum tag,
+        Memory<byte> bytes,
+        bool isBigEndian,
+        List<NbtTag>? children = null,
+        NbtTagEnum childrenTag = NbtTagEnum.Unknown,
+        bool isListDirectElement = false) // 便于构造树形结构，避免单元素(伪)列表)
     {
-        return
-            $"Type:{Tag,-11} | "
-            + $"{$"Pos:({_pos.begin}, {_pos.end})",-13} | "
-            + $"Length:{$"{_pos.end - _pos.begin + 1}",-3} | "
-            + $"ChildCount:{Children.Count} | "
-            + $"ChildTag:{ChildrenTag} | "
-            + $"OwnerHashCode:{_owner.GetHashCode()}";
+        _bytes = bytes;
+        Children = children ?? [];
+        ChildrenTag = childrenTag;
+        _isBigEndian = isBigEndian;
+        Tag = tag;
+        IsListDirectElement = isListDirectElement;
+        _name = GetName();
+        _value = GetValue();
     }
 
     /// <summary>
@@ -117,7 +113,7 @@ public class NbtTag(
             4 => _isBigEndian
                 ? BinaryPrimitives.ReadInt32BigEndian(dataLengthField)
                 : BinaryPrimitives.ReadInt32LittleEndian(dataLengthField),
-            _ => throw new Exception($"未知标签! ({_pos.begin},{_pos.end})") // 正常不可能报错
+            _ => throw new Exception("未知标签!") // 正常不可能报错
         };
 
         if (dataLength == 0) return ""; // 长度为零，则直接返回空字符串
@@ -257,7 +253,6 @@ public class NbtTag(
         void PrintTag()
         {
             Console.ForegroundColor = NbtGlobal.EnumToColor[Tag];
-            _name ??= GetName();
             // 名称
             Console.Write(string.IsNullOrEmpty(_name) ? Tag : _name);
 
@@ -273,19 +268,8 @@ public class NbtTag(
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.Write(" = ");
             Console.ForegroundColor = tagColor;
-            var value = GetValue();
-            if (value.Length > 50) value = value[..50] + " ...";
-            Console.WriteLine(value);
+            // 构造方法执行 GetValue() 第一步设置 string.Empty, _value 必定不是 null
+            Console.WriteLine(_value!.Length <= 50 ? _value : _value[..50] + " ...");
         }
-    }
-
-    /// <summary>
-    ///     重设 NBT 标签子项
-    /// </summary>
-    /// <param name="children">子项列表</param>
-    /// <returns>新的 NBT 标签实例</returns>
-    public NbtTag ReassembleChildren(List<NbtTag> children)
-    {
-        return new NbtTag(Tag, _pos, _owner, _isBigEndian, children, ChildrenTag, IsListDirectElement);
     }
 }

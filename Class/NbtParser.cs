@@ -86,7 +86,8 @@ public class NbtParser
                     continue;
             }
 
-        return listTag.ReassembleChildren(stack.ToList());
+        listTag.Children = stack.ToList();
+        return listTag;
     }
 
     /// <summary>
@@ -159,10 +160,8 @@ public class NbtParser
                 offset += nameLength;
                 // 字符串列表单个元素只有名称数据段
                 if (tagEnum == NbtTagEnum.String)
-                    return new NbtTag(tagEnum, (begin, offset - 1), _bytes, _isBigEndian,
-                        isListDirectElement: isListDirectItem);
+                   return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
                 break;
-
             case false:
                 offset += nameLength;
                 break;
@@ -170,7 +169,7 @@ public class NbtParser
 
         var dataLength = Tools.ReadLength(offset, dataLengthFieldSize, _bytes, _isBigEndian);
         offset += dataLengthFieldSize + dataLengthMulti * dataLength;
-        return new NbtTag(tagEnum, (begin, offset - 1), _bytes, _isBigEndian, isListDirectElement: isListDirectItem);
+        return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
     }
 
     /// <summary>
@@ -188,19 +187,18 @@ public class NbtParser
     {
         var begin = offset - 1;
         var dataLength = QueryFieldSize(tagEnum);
+
+        // 对于 End 标签，长度固定为 1 字节
+        if (tagEnum is NbtTagEnum.End) return BuildTag(tagEnum, begin, 1);
+
         switch (noId)
         {
             case true:
                 begin++; // 列表内元素不以标签序号开头
-                // 对于 End 标签，长度固定为 1 字节
-                if (tagEnum is NbtTagEnum.End) return new NbtTag(tagEnum, (begin, begin), _bytes, _isBigEndian);
 
                 offset += dataLength;
                 break;
             case false:
-                // 对于 End 标签，长度固定为 1 字节
-                if (tagEnum is NbtTagEnum.End) return new NbtTag(tagEnum, (begin, begin), _bytes, _isBigEndian);
-
                 var nameLength = GetTagNameLength(ref offset, NbtGlobal.NameLengthFieldSize);
                 offset += nameLength + dataLength;
                 // 数据：[03] (00 01) "D1" (00 00 00 00) [03] ........
@@ -209,7 +207,7 @@ public class NbtParser
                 break;
         }
 
-        return new NbtTag(tagEnum, (begin, offset - 1), _bytes, _isBigEndian, isListDirectElement: isListDirectItem);
+        return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
     }
 
     /// <summary>
@@ -232,8 +230,7 @@ public class NbtParser
         offset += NbtGlobal.ListElementCountFieldSize;
 
         var elements = ParseListElements(ref offset, elementsTag, elementsCount);
-        return new NbtTag(NbtTagEnum.List, (begin, offset - 1), _bytes, _isBigEndian, elements, elementsTag,
-            isListDirectItem);
+        return BuildTag(NbtTagEnum.List, begin, offset - begin + 1, isListDirectItem, elementsTag, elements);
     }
 
     /// <summary>
@@ -257,8 +254,7 @@ public class NbtParser
 
             // 列表<复合标签>的处理
             // 列表子元素为隐式标签ID，为便于构建树形结构，补一个字典标签
-            elements.Add(new NbtTag(NbtTagEnum.Dictionary, (offset, offset), _bytes, _isBigEndian,
-                isListDirectElement: true));
+            elements.Add(BuildTag(NbtTagEnum.Dictionary, offset, 1, true));
 
             var isEnd = false; // 第 i 个子元素是否结束
             var require = 1; // 遇到多个结束标签算作结束
@@ -287,6 +283,23 @@ public class NbtParser
         }
 
         return elements;
+    }
+
+    /// <summary>
+    /// 构造一个 NBT 标签实例
+    /// </summary>
+    /// <param name="type">标签类型</param>
+    /// <param name="begin">标签头部位置</param>
+    /// <param name="length">标签长度</param>
+    /// <param name="isListDirectItem">是否为列表直接子元素</param>
+    /// <param name="childrenTag">子元素类型</param>
+    /// <param name="children">子元素列表</param>
+    /// <returns>NBT 标签实例</returns>
+    private NbtTag BuildTag(NbtTagEnum type, int begin,int length, bool isListDirectItem = false,
+        NbtTagEnum childrenTag = NbtTagEnum.Unknown, List<NbtTag>? children = null)
+    {
+        var bytes = _bytes.AsMemory().Slice(begin, length);
+        return new NbtTag(type, bytes, _isBigEndian, children, childrenTag, isListDirectItem);
     }
 
     /// <summary>
