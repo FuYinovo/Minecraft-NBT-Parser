@@ -17,6 +17,10 @@ public class NbtTag
     public List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
 
+    /// <summary>
+    /// 由字节集合构造 NBT 标签
+    /// </summary>
+    /// <remarks>请使用 NBT_Parser.Class.NbtTagBuilder 构造 NBT 标签</remarks>
     public NbtTag(NbtTagEnum tag,
         Memory<byte> bytes,
         bool isBigEndian,
@@ -35,9 +39,29 @@ public class NbtTag
     }
 
     /// <summary>
+    /// 由名称、值构造 NBT 标签
+    /// </summary>
+    /// <remarks>请使用 NBT_Parser.Class.NbtTagBuilder 构造 NBT 标签</remarks>
+    public NbtTag(NbtTagEnum tag,
+        bool isBigEndian,
+        string? name = null,
+        object? value = null,
+        List<NbtTag>? children = null,
+        NbtTagEnum childrenTag = NbtTagEnum.Unknown,
+        bool isListDirectElement = false)
+    {
+        _name = name;
+        _value = value;
+        Children = children ?? [];
+        ChildrenTag = childrenTag;
+        _isBigEndian = isBigEndian;
+        Tag = tag;
+        IsListDirectElement = isListDirectElement;
+    }
+
+    /// <summary>
     ///     获取标签名称
     /// </summary>
-    /// <returns>名称的字符串</returns>
     public string? GetName()
     {
         try
@@ -59,7 +83,6 @@ public class NbtTag
     /// <code>
     ///  返回值：string, byte, short, int, long, float, double, byte[], int[], long[]
     ///  </code>
-    /// <returns>值</returns>
     public object? GetValue()
     {
         try
@@ -85,11 +108,18 @@ public class NbtTag
         }
     }
 
+    /// <summary>
+    /// 设置标签名称
+    /// </summary>
     public void SetName(string name)
     {
         _name = name;
     }
 
+    /// <summary>
+    /// 设置标签值
+    /// </summary>
+    /// <exception cref="InvalidCastException">非法值</exception>
     public void SetValue(object value)
     {
         var validDataType = NbtGlobal.ByteToInfo[(byte)Tag].dataType;
@@ -113,6 +143,9 @@ public class NbtTag
         }
     }
 
+    /// <summary>
+    /// 解析标签名称
+    /// </summary>
     private string ParseName()
     {
         var nameLength = GetNameLength();
@@ -127,7 +160,6 @@ public class NbtTag
     /// <code>
     ///  负责：ByteArray, String, IntArray, LongArray
     ///  </code>
-    /// <returns>值的字符串</returns>
     /// <exception cref="Exception">当前标签不是动态负载长度标签</exception>
     private object ParseDynamicValue()
     {
@@ -211,7 +243,6 @@ public class NbtTag
     /// <code>
     ///  负责：byte, short, int, long, float, double
     ///  </code>
-    /// <returns>值</returns>
     /// <exception cref="Exception">当前标签不是静态负载长度标签</exception>
     private object ParseConstValue()
     {
@@ -236,7 +267,7 @@ public class NbtTag
                 ? BinaryPrimitives.ReadInt64BigEndian(data)
                 : BinaryPrimitives.ReadInt64LittleEndian(data),
             NbtTagEnum.Float => _isBigEndian
-                ? BinaryPrimitives.ReadSingleBigEndian(data).ToString()  // ToString() 避免精度误差
+                ? BinaryPrimitives.ReadSingleBigEndian(data).ToString() // ToString() 避免精度误差
                 : BinaryPrimitives.ReadSingleLittleEndian(data).ToString(),
             NbtTagEnum.Double => _isBigEndian
                 ? BinaryPrimitives.ReadDoubleBigEndian(data).ToString()
@@ -248,7 +279,6 @@ public class NbtTag
     /// <summary>
     ///     获取标签名称长度
     /// </summary>
-    /// <returns>长度</returns>
     private int GetNameLength()
     {
         if (IsListDirectElement) return 0; // 列表元素没有名称
@@ -263,8 +293,7 @@ public class NbtTag
     /// <summary>
     ///     打印自身及子项组成的树状结构
     /// </summary>
-    /// <param name="indent">[请忽略]</param>
-    /// <param name="isLast">[请忽略]</param>
+    /// <remarks>请忽略参数</remarks>
     public void PrintTree(string indent = "", bool isLast = true)
     {
         Console.ForegroundColor = ConsoleColor.DarkGray;
@@ -317,3 +346,4 @@ public class NbtTag
         }
     }
 }
+
