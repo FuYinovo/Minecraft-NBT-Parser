@@ -160,7 +160,7 @@ public class NbtParser
                 offset += nameLength;
                 // 字符串列表单个元素只有名称数据段
                 if (tagEnum == NbtTagEnum.String)
-                    return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
+                    return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
                 break;
             case false:
                 offset += nameLength;
@@ -169,7 +169,7 @@ public class NbtParser
 
         var dataLength = Tools.ReadLength(offset, dataLengthFieldSize, _bytes, _isBigEndian);
         offset += dataLengthFieldSize + dataLengthMulti * dataLength;
-        return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
+        return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
     }
 
     /// <summary>
@@ -207,7 +207,7 @@ public class NbtParser
                 break;
         }
 
-        return BuildTag(tagEnum, begin, offset - begin + 1, isListDirectItem);
+        return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
     }
 
     /// <summary>
