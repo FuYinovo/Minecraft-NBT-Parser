@@ -60,16 +60,16 @@ public static class NbtTagBuilder
 
     public static NbtTag ByteArray(string name, IEnumerable<byte> bytes, bool isBigEndian)
     {
-        return new NbtTag(NbtTagEnum.ByteArray, isBigEndian, name, bytes);
+        return new NbtTag(NbtTagEnum.ByteArray, isBigEndian, name, bytes.ToArray());
     }
 
     public static NbtTag IntArray(string name, IEnumerable<int> ints, bool isBigEndian)
     {
-        return new NbtTag(NbtTagEnum.IntArray, isBigEndian, name, ints);
+        return new NbtTag(NbtTagEnum.IntArray, isBigEndian, name, ints.ToArray());
     }
 
     public static NbtTag LongArray(string name, IEnumerable<long> longs, bool isBigEndian)
     {
-        return new NbtTag(NbtTagEnum.LongArray, isBigEndian, name, longs);
+        return new NbtTag(NbtTagEnum.LongArray, isBigEndian, name, longs.ToArray());
     }
 }

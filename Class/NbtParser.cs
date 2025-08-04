@@ -108,12 +108,7 @@ public class NbtParser
     {
         var list = new List<NbtTag>();
         var offset = begin;
-        while (offset < _bytes.Length)
-        {
-            var tag = GetTag(ref offset);
-            list.Add(tag);
-        }
-
+        while (offset < _bytes.Length) list.Add(GetTag(ref offset));
         return list;
     }
 
@@ -122,27 +117,17 @@ public class NbtParser
     /// </summary>
     /// <param name="offset">标签头部位置</param>
     /// <param name="listElementsTag">List 子元素类型</param>
-    /// <param name="noId">标签是否记录了 ID</param>
     /// <param name="isListDirectItem">是否是列表直接子元素</param>
     /// <returns>一个 NBT 标签实例</returns>
-    private NbtTag GetTag(ref int offset, NbtTagEnum listElementsTag = NbtTagEnum.Unknown, bool noId = false,
+    private NbtTag GetTag(ref int offset, NbtTagEnum listElementsTag = NbtTagEnum.Unknown,
         bool isListDirectItem = false)
     {
-        var tagEnum = noId switch { true => listElementsTag, false => GetTagEnum(ref offset) };
-        return QueryIsDynamic(tagEnum) switch
-        {
-            true => tagEnum switch
-            {
-                NbtTagEnum.List => ParseListTag(ref offset, isListDirectItem),
-                NbtTagEnum.String
-                    or NbtTagEnum.ByteArray
-                    or NbtTagEnum.IntArray
-                    or NbtTagEnum.LongArray
-                    => ParseDynamicTag(ref offset, tagEnum, noId, isListDirectItem),
-                _ => throw new Exception($"[{tagEnum}]不是动态负载长度!")
-            },
-            false => ParseConstTag(ref offset, tagEnum, noId, isListDirectItem)
-        };
+        var tagEnum = isListDirectItem ? listElementsTag : ConsumeTagEnum(ref offset);
+        return QueryIsDynamic(tagEnum)
+            ? tagEnum == NbtTagEnum.List
+                ? ConsumeListTag(ref offset, isListDirectItem)
+                : ConsumeDynamicTag(ref offset, tagEnum, isListDirectItem)
+            : ConsumeConstTag(ref offset, tagEnum, isListDirectItem);
     }
 
     /// <summary>
@@ -153,31 +138,33 @@ public class NbtParser
     ///  </code>
     /// <param name="offset">标签头部位置</param>
     /// <param name="tagEnum">标签枚举</param>
-    /// <param name="noId">标签是否记录了 ID</param>
     /// <param name="isListDirectItem">是否是列表直接子元素</param>
     /// <returns>一个 NBT 标签实例</returns>
-    private NbtTag ParseDynamicTag(ref int offset, NbtTagEnum tagEnum, bool noId = false, bool isListDirectItem = false)
+    private NbtTag ConsumeDynamicTag(ref int offset, NbtTagEnum tagEnum, bool isListDirectItem = false)
     {
         var begin = offset - 1;
         var dataLengthMulti = QueryDataLengthMulti(tagEnum);
         var dataLengthFieldSize = QueryFieldSize(tagEnum);
-        var nameLength = GetTagNameLength(ref offset, NbtGlobal.NameLengthFieldSize); // + FieldSize
-        switch (noId)
+        var nameLength = ConsumeLengthField<ushort>(ref offset, NbtGlobal.NameLengthFieldSize);
+        offset += nameLength;
+
+        // 列表元素
+        if (isListDirectItem)
         {
-            case true:
-                begin++; // 无标签Id
-                offset += nameLength;
-                // 字符串列表单个元素只有名称数据段
-                if (tagEnum == NbtTagEnum.String)
-                    return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
-                break;
-            case false:
-                offset += nameLength;
-                break;
+            begin++; // 无标签ID
+            // 列表<字符串>的元素的名称即是值
+            if (isListDirectItem && tagEnum == NbtTagEnum.String)
+                return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
         }
 
-        var dataLength = Tools.ReadLength(offset, dataLengthFieldSize, _bytes, _isBigEndian);
-        offset += dataLengthFieldSize + dataLengthMulti * dataLength;
+        // 非列表元素
+        var dataLength = dataLengthFieldSize switch
+        {
+            2 => ConsumeLengthField<ushort>(ref offset, 2),
+            4 => ConsumeLengthField<int>(ref offset, 4),
+            _ => throw new Exception($"[{tagEnum}]数据长度段占用[{dataLengthFieldSize}]字节!检查[NbtGlobal]是否正确!")
+        };
+        offset += dataLengthMulti * dataLength;
         return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
     }
 
@@ -189,10 +176,9 @@ public class NbtParser
     ///  </code>
     /// <param name="offset">标签头部位置</param>
     /// <param name="tagEnum">标签枚举</param>
-    /// <param name="noId">标签是否记录了 ID</param>
     /// <param name="isListDirectItem">是否是列表直接子元素</param>
     /// <returns>一个 NBT 标签实例</returns>
-    private NbtTag ParseConstTag(ref int offset, NbtTagEnum tagEnum, bool noId = false, bool isListDirectItem = false)
+    private NbtTag ConsumeConstTag(ref int offset, NbtTagEnum tagEnum, bool isListDirectItem = false)
     {
         var begin = offset - 1;
         var dataLength = QueryFieldSize(tagEnum);
@@ -200,22 +186,21 @@ public class NbtParser
         // 对于 End 标签，长度固定为 1 字节
         if (tagEnum is NbtTagEnum.End) return BuildTag(tagEnum, begin, 1);
 
-        switch (noId)
+        // 列表元素
+        if (isListDirectItem)
         {
-            case true:
-                begin++; // 列表内元素不以标签序号开头
-
-                offset += dataLength;
-                break;
-            case false:
-                var nameLength = GetTagNameLength(ref offset, NbtGlobal.NameLengthFieldSize);
-                offset += nameLength + dataLength;
-                // 数据：[03] (00 01) "D1" (00 00 00 00) [03] ........
-                // 移动：[01] [02]    [03] [04]          [05]
-                // 执行：[01]Init | [02]GetTag() | [03]GetTagNameLength() | [04]+nameLength | [05]+dataLength
-                break;
+            // 没有ID和名称
+            begin++;
+            offset += dataLength;
+            return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
         }
 
+        // 非列表元素
+        var nameLength = ConsumeLengthField<ushort>(ref offset, NbtGlobal.NameLengthFieldSize);
+        offset += nameLength + dataLength;
+        // 数据：[03] (00 01) "D1" (00 00 00 00) [03] ........
+        // 移动：[01] [02]    [03] [04]          [05]
+        // 执行：[01]Init | [02]GetTag() | [03]ConsumeLengthField() | [04]+nameLength | [05]+dataLength
         return BuildTag(tagEnum, begin, offset - begin, isListDirectItem);
     }
 
@@ -228,19 +213,17 @@ public class NbtParser
     /// <param name="offset">标签头部位置</param>
     /// <param name="isListDirectItem">是否是列表直接子元素</param>
     /// <returns>一个 NBT 标签</returns>
-    private NbtTag ParseListTag(ref int offset, bool isListDirectItem = false)
+    private NbtTag ConsumeListTag(ref int offset, bool isListDirectItem = false)
     {
         var begin = offset - 1;
-        var nameLength = GetTagNameLength(ref offset, NbtGlobal.NameLengthFieldSize);
+        var nameLength = ConsumeLengthField<ushort>(ref offset, NbtGlobal.NameLengthFieldSize);
         offset += nameLength;
-        var elementsTag = GetTagEnum(ref offset);
-        var elementsCount =
-            Tools.ReadLength(offset, NbtGlobal.ListElementCountFieldSize, _bytes, _isBigEndian);
-        offset += NbtGlobal.ListElementCountFieldSize;
+        var elementTag = ConsumeTagEnum(ref offset);
+        var elementCount = ConsumeLengthField<int>(ref offset, NbtGlobal.ListElementCountFieldSize);
 
-        var elements = ParseListElements(ref offset, elementsTag, elementsCount);
-        var length = NbtGlobal.NameLengthFieldSize + nameLength + 6;
-        return BuildTag(NbtTagEnum.List, begin, length, isListDirectItem, elementsTag, elements);
+        var elements = ConsumeListElements(ref offset, elementTag, elementCount);
+        var length = NbtGlobal.NameLengthFieldSize + nameLength + 1 + NbtGlobal.ListElementCountFieldSize + 1;
+        return BuildTag(NbtTagEnum.List, begin, length, isListDirectItem, elementTag, elements);
     }
 
     /// <summary>
@@ -250,20 +233,20 @@ public class NbtParser
     /// <param name="elementsTag">元素类型</param>
     /// <param name="elementsCount">元素数量</param>
     /// <returns>一个 <see cref="NbtTag" /> 列表</returns>
-    private List<NbtTag> ParseListElements(ref int offset, NbtTagEnum elementsTag, int elementsCount)
+    private List<NbtTag> ConsumeListElements(ref int offset, NbtTagEnum elementsTag, int elementsCount)
     {
         // 对于列表<字典>，需要存储字典+结束标签，故2倍容量
-        var elements = new List<NbtTag>(elementsTag == NbtTagEnum.Dictionary ? elementsCount * 2: elementsCount);
+        var elements = new List<NbtTag>(elementsTag == NbtTagEnum.Dictionary ? elementsCount * 2 : elementsCount);
         for (var i = 1; i <= elementsCount; i++)
         {
             // 列表<一般标签>的处理
             if (elementsTag != NbtTagEnum.Dictionary)
             {
-                elements.Add(GetTag(ref offset, elementsTag, true, true));
+                elements.Add(GetTag(ref offset, elementsTag, true));
                 continue;
             }
 
-            // 列表<复合标签>的处理
+            // 列表<字典>的处理
             // 列表子元素为隐式标签ID，为便于构建树形结构，补一个字典标签
             elements.Add(BuildTag(NbtTagEnum.Dictionary, offset, 1, true));
 
@@ -314,30 +297,24 @@ public class NbtParser
     }
 
     /// <summary>
-    ///     获取标签名称长度
-    /// </summary>
-    /// <param name="offset">名称长度头部位置</param>
-    /// <param name="fieldSize">存储名称长度的字节数</param>
-    /// <returns>名称长度</returns>
-    private int GetTagNameLength(ref int offset, int fieldSize)
-    {
-        var length = Tools.ReadLength(offset, fieldSize, _bytes, _isBigEndian);
-        offset += fieldSize;
-        return length;
-    }
-
-    /// <summary>
     ///     获取标签枚举
     /// </summary>
     /// <param name="offset">标签头部位置</param>
     /// <returns>标签枚举</returns>
-    private NbtTagEnum GetTagEnum(ref int offset)
+    private NbtTagEnum ConsumeTagEnum(ref int offset)
     {
         var tagEnum = QueryEnum(_bytes[offset]);
         offset++;
         return tagEnum;
     }
 
+    private T ConsumeLengthField<T>(ref int offset, int fieldSize) where T : struct
+    {
+        var bytes = _bytes.AsSpan(offset, fieldSize).ToArray();
+        var length = Tools.ReadNumber<T>(bytes, _isBigEndian);
+        offset += fieldSize;
+        return length;
+    }
 
     #region Querier
 

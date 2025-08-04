@@ -3,18 +3,20 @@ using System.Collections;
 using System.Text;
 using NBT_Parser.Enum;
 using NBT_Parser.Record;
+using NBT_Parser.Utils;
 
 namespace NBT_Parser.Class;
 
 public class NbtTag
 {
     private readonly bool _isBigEndian;
+    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
+    private bool _isChanged;
+    public string? Name;
+    public object? Value;
+    private string _floatValueTemp = string.Empty;
     public readonly NbtTagEnum ChildrenTag;
     public readonly NbtTagEnum Tag;
-    private readonly Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
-    private bool _isChanged;
-    private string? _name;
-    private object? _value;
     public List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
 
@@ -36,12 +38,12 @@ public class NbtTag
         Tag = tag;
         IsListDirectElement = isListDirectElement;
 
-        _name = Tag switch
+        Name = Tag switch
         {
             NbtTagEnum.End => null,
             _ => IsListDirectElement ? null : ParseName()
         };
-        _value = Tag switch
+        Value = Tag switch
         {
             NbtTagEnum.End or NbtTagEnum.Dictionary or NbtTagEnum.List => null,
             _ => ParseValue()
@@ -60,8 +62,8 @@ public class NbtTag
         NbtTagEnum childrenTag = NbtTagEnum.Unknown,
         bool isListDirectElement = false)
     {
-        _name = name;
-        _value = value;
+        Name = name;
+        Value = value;
         Children = children ?? [];
         ChildrenTag = childrenTag;
         _isBigEndian = isBigEndian;
@@ -71,36 +73,11 @@ public class NbtTag
     }
 
     /// <summary>
-    ///     获取标签名称
-    /// </summary>
-    public string? GetName()
-    {
-        return _name;
-    }
-
-    /// <summary>
-    ///     获取标签值
-    /// </summary>
-    /// <code>
-    ///  返回值：string, byte, short, int, long, float, double, byte[], int[], long[]
-    ///  </code>
-    public object? GetValue()
-    {
-        return Tag switch
-        {
-            NbtTagEnum.Float => float.Parse(_value?.ToString() ?? string.Empty),
-            NbtTagEnum.Double =>
-                double.Parse(_value?.ToString() ?? string.Empty),
-            _ => _value
-        };
-    }
-
-    /// <summary>
     ///     设置标签名称
     /// </summary>
-    public void SetName(string name)
+    public void SetName(string? name)
     {
-        _name = name;
+        Name = name;
         _isChanged = true;
     }
 
@@ -119,14 +96,14 @@ public class NbtTag
                 if (array.GetType() != validDataType)
                     throw new InvalidCastException($"[{Tag}]的值不能设为{array.GetType()}!");
                 // 设置值
-                _value = array;
+                Value = array;
                 break;
             default:
                 // 检查合法性
                 if (value.GetType() != validDataType)
                     throw new InvalidCastException($"[{Tag}]的值不能设为{value.GetType()}!");
                 // 设置值
-                _value = value;
+                Value = value;
                 break;
         }
 
@@ -139,6 +116,7 @@ public class NbtTag
     /// <remarks>可直接保存为 NBT 文件</remarks>
     public byte[] GetBytesTree()
     {
+        if (_isChanged) _bytes = Deserialize();
         var bytes = _bytes.ToArray().ToList();
         if (Tag is NbtTagEnum.Dictionary && IsListDirectElement) bytes.Clear();
         foreach (var child in Children) bytes.AddRange(child.GetBytesTree());
@@ -146,6 +124,113 @@ public class NbtTag
         return bytes.ToArray();
     }
 
+    /// <summary>
+    /// 反序列化
+    /// </summary>
+    /// <returns>标签的字节集合</returns>
+    private Memory<byte> Deserialize()
+    {
+        var bytes = new List<byte>();
+        // 1. 标签ID段
+        switch (IsListDirectElement)
+        {
+            case false:
+            case true when Tag == NbtTagEnum.End:
+                bytes.Add((byte)Tag);
+                break;
+        }
+
+        // 2. 名称长度段及名称段
+        bytes.AddRange(DeserializeName());
+        // 3. 负载长度段及负载段
+        bytes.AddRange(NbtGlobal.ByteToInfo[(byte)Tag].isDynamic ? DeserializeDynamicValue() : DeserializeConstValue());
+        return bytes.ToArray();
+    }
+
+    /// <summary>
+    /// 反序列化名称
+    /// </summary>
+    /// <returns>名称长度段和名称段的字节数组</returns>
+    private byte[] DeserializeName()
+    {
+        if (Name is null) return [];
+
+        var bytes = new List<byte>();
+        // 名称长度段
+        var nameLength = (short)Name.Length;
+        var nameLengthField = BitConverter.GetBytes(nameLength);
+        bytes.AddRange(_isBigEndian ? nameLengthField.Reverse().ToArray() : nameLengthField);
+        // 名称段
+        var nameField = Encoding.UTF8.GetBytes(Name);
+        bytes.AddRange(nameField);
+
+        return bytes.ToArray();
+    }
+
+    /// <summary>
+    /// 为静态负载长度的标签反序列化值
+    /// </summary>
+    /// <returns>内容的字节数组</returns>
+    /// <exception cref="Exception">不是静态负载长度标签</exception>
+    private byte[] DeserializeConstValue()
+    {
+        if (Value is null) return [];
+        byte[] valueField = [];
+        // 防止 switch 隐式将 2字节、4字节的类型匹配到 8字节的 Double
+        if (Tag == NbtTagEnum.Byte) valueField = [(byte)Value];
+        if (Tag == NbtTagEnum.Int) valueField = BitConverter.GetBytes((int)Value);
+        if (Tag == NbtTagEnum.Short) valueField = BitConverter.GetBytes((short)Value);
+        if (Tag == NbtTagEnum.Float) valueField = BitConverter.GetBytes((float)Value);
+        if(Tag == NbtTagEnum.Long)  valueField = BitConverter.GetBytes((long)Value);
+        if(Tag == NbtTagEnum.Double) valueField = BitConverter.GetBytes((double)Value);
+
+        if (valueField.Length > 0) return _isBigEndian ? valueField.Reverse().ToArray() : valueField;
+        throw new Exception($"反序列化失败: [{Tag}]不是静态负载长度标签!");
+    }
+
+    /// <summary>
+    /// 为动态负载长度的标签反序列化值
+    /// </summary>
+    /// <returns>内容的字节数组</returns>
+    /// <exception cref="Exception">不是静态动态长度标签</exception>
+    private byte[] DeserializeDynamicValue()
+    {
+        var bytes = new List<byte>();
+
+        // 列表标签
+        if (Tag == NbtTagEnum.List)
+        {
+            var childrenTagField = (byte)ChildrenTag;
+            var childrenCountField = BitConverter.GetBytes(Children.Count);
+            bytes.Add(childrenTagField);
+            bytes.AddRange(_isBigEndian ? childrenCountField.Reverse() : childrenCountField);
+            return bytes.ToArray();
+        }
+
+        // 非列表标签
+        if (Value is null) return [];
+        var length = Tag switch
+        {
+            NbtTagEnum.String => (short)((string)Value).Length,
+            NbtTagEnum.ByteArray => ((byte[])Value).Length,
+            NbtTagEnum.IntArray => ((int[])Value).Length,
+            NbtTagEnum.LongArray => ((long[])Value).Length,
+            _ => throw new Exception($"反序列化失败: [{Tag}]不是动态负载长度标签!")
+        };
+        var lengthField = BitConverter.GetBytes(length); // 负载长度段
+        var valueField = Tag switch // 负载段
+        {
+            NbtTagEnum.String => Encoding.UTF8.GetBytes((string)Value),
+            NbtTagEnum.ByteArray => (byte[])Value,
+            NbtTagEnum.IntArray => ((int[])Value).SelectMany(BitConverter.GetBytes),
+            NbtTagEnum.LongArray => ((long[])Value).SelectMany(BitConverter.GetBytes),
+            _ => throw new Exception($"反序列化失败: [{Tag}]不是动态负载长度标签!")
+        };
+        bytes.AddRange(_isBigEndian ? lengthField.Reverse() : lengthField); // 大小端序反转
+        bytes.AddRange(valueField);
+
+        return bytes.ToArray();
+    }
 
     /// <summary>
     ///     解析标签名称
@@ -165,6 +250,9 @@ public class NbtTag
         }
     }
 
+    /// <summary>
+    /// 解析标签值
+    /// </summary>
     private object ParseValue()
     {
         try
@@ -203,12 +291,8 @@ public class NbtTag
 
         var dataLength = info.fieldSize switch
         {
-            2 => _isBigEndian
-                ? BinaryPrimitives.ReadInt16BigEndian(dataLengthField)
-                : BinaryPrimitives.ReadInt16LittleEndian(dataLengthField),
-            4 => _isBigEndian
-                ? BinaryPrimitives.ReadInt32BigEndian(dataLengthField)
-                : BinaryPrimitives.ReadInt32LittleEndian(dataLengthField),
+            2 => Tools.ReadNumber<short>(dataLengthField.ToArray(), _isBigEndian),
+            4 => Tools.ReadNumber<int>(dataLengthField.ToArray(), _isBigEndian),
             _ => throw new Exception("未知标签!") // 正常不可能报错
         };
 
@@ -230,37 +314,19 @@ public class NbtTag
             case NbtTagEnum.String:
                 return Encoding.UTF8.GetString(data);
             case NbtTagEnum.IntArray:
-                return ConstructArray(data, 4);
+                var intArray = new int[data.Length / 4];
+                var intSource = data.ToArray();
+                intSource = _isBigEndian ? intSource.Reverse().ToArray() : intSource;
+                Buffer.BlockCopy(intSource, 0, intArray, 0, data.Length);
+                return intArray;
             case NbtTagEnum.LongArray:
-                return ConstructArray(data, 8);
+                var longArray = new long[data.Length / 8];
+                var longSource = data.ToArray();
+                longSource = _isBigEndian ? longSource.Reverse().ToArray() : longSource;
+                Buffer.BlockCopy(longSource, 0, longArray, 0, data.Length);
+                return longArray;
             default:
                 throw new Exception($"[{Tag}]不是动态负载长度标签!");
-        }
-
-        Array ConstructArray(Span<byte> bytes, object type)
-        {
-            var length = type switch
-            {
-                int => 4,
-                long => 8,
-                _ => throw new Exception($"不支持[{type.GetType()}]数组!")
-            };
-            var elements = new long[bytes.Length / length];
-            for (var i = 0; i < bytes.Length; i += length)
-            {
-                var singleLong = bytes.Slice(i, length);
-                elements[i / length] = _isBigEndian switch
-                {
-                    true => length == 4
-                        ? BinaryPrimitives.ReadInt32BigEndian(singleLong)
-                        : BinaryPrimitives.ReadInt64BigEndian(singleLong),
-                    false => length == 4
-                        ? BinaryPrimitives.ReadInt32LittleEndian(singleLong)
-                        : BinaryPrimitives.ReadInt64LittleEndian(singleLong)
-                };
-            }
-
-            return elements.ToArray();
         }
     }
 
@@ -281,26 +347,20 @@ public class NbtTag
             false => NbtGlobal.NameLengthFieldSize + nameLength + 1
         };
         var data = _bytes.Span.Slice(dataBegin, info.fieldSize);
-        return Tag switch
+
+        _floatValueTemp = Tag switch
         {
-            NbtTagEnum.Byte => data[0],
-            NbtTagEnum.Short => _isBigEndian
-                ? BinaryPrimitives.ReadInt16BigEndian(data)
-                : BinaryPrimitives.ReadInt16LittleEndian(data),
-            NbtTagEnum.Int => _isBigEndian
-                ? BinaryPrimitives.ReadInt32BigEndian(data)
-                : BinaryPrimitives.ReadInt32LittleEndian(data),
-            NbtTagEnum.Long => _isBigEndian
-                ? BinaryPrimitives.ReadInt64BigEndian(data)
-                : BinaryPrimitives.ReadInt64LittleEndian(data),
-            NbtTagEnum.Float => _isBigEndian
-                ? BinaryPrimitives.ReadSingleBigEndian(data).ToString() // ToString() 避免精度误差
-                : BinaryPrimitives.ReadSingleLittleEndian(data).ToString(),
-            NbtTagEnum.Double => _isBigEndian
-                ? BinaryPrimitives.ReadDoubleBigEndian(data).ToString()
-                : BinaryPrimitives.ReadDoubleLittleEndian(data).ToString(),
-            _ => throw new Exception("非静态负载长度")
+            NbtTagEnum.Float => Tools.ReadNumber<float>(data.ToArray(), _isBigEndian).ToString(),
+            NbtTagEnum.Double => Tools.ReadNumber<double>(data.ToArray(), _isBigEndian).ToString(),
+            _ => string.Empty
         };
+        if (Tag == NbtTagEnum.Byte) return data[0];
+        if (Tag == NbtTagEnum.Short) return Tools.ReadNumber<short>(data.ToArray(), _isBigEndian);
+        if (Tag == NbtTagEnum.Int) return Tools.ReadNumber<int>(data.ToArray(), _isBigEndian);
+        if (Tag == NbtTagEnum.Float) return Tools.ReadNumber<float>(data.ToArray(), _isBigEndian);
+        if (Tag == NbtTagEnum.Long) return Tools.ReadNumber<long>(data.ToArray(), _isBigEndian);
+        if (Tag == NbtTagEnum.Double) return Tools.ReadNumber<double>(data.ToArray(), _isBigEndian);
+        throw new Exception("非静态负载长度");
     }
 
     /// <summary>
@@ -310,20 +370,18 @@ public class NbtTag
     {
         if (IsListDirectElement) return 0; // 列表元素没有名称
         var nameLengthField = _bytes.Span.Slice(1, NbtGlobal.NameLengthFieldSize);
-        return _isBigEndian switch
-        {
-            true => BinaryPrimitives.ReadInt16BigEndian(nameLengthField),
-            false => BinaryPrimitives.ReadInt16LittleEndian(nameLengthField)
-        };
+        return Tools.ReadNumber<short>(nameLengthField.ToArray(), _isBigEndian);
     }
 
     /// <summary>
     ///     打印自身及子项组成的树状结构
     /// </summary>
-    /// <remarks>请忽略参数</remarks>
-    public void PrintTree(string indent = "", bool isLast = true)
+    /// <param name="hideEnd">是否隐藏结束标签</param>
+    /// <param name="indent">[忽略]</param>
+    /// <param name="isLast">[忽略]</param>
+    public void PrintTree(bool hideEnd = true, string indent = "", bool isLast = true)
     {
-        if (Tag == NbtTagEnum.End) return;
+        if (Tag == NbtTagEnum.End && hideEnd) return;
 
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.Write(indent);
@@ -340,7 +398,7 @@ public class NbtTag
             indent += "|".PadRight(4);
         }
 
-        for (var i = 0; i < Children.Count; i++) Children[i].PrintTree(indent, i == Children.Count - 1);
+        for (var i = 0; i < Children.Count; i++) Children[i].PrintTree(hideEnd, indent, i == Children.Count - 1);
         Console.ResetColor();
 
         return;
@@ -349,7 +407,7 @@ public class NbtTag
         {
             Console.ForegroundColor = NbtGlobal.EnumToColor[Tag];
             // 名称
-            Console.Write(string.IsNullOrEmpty(_name) ? Tag : _name);
+            Console.Write(string.IsNullOrEmpty(Name) ? Tag : Name);
 
             // 子元素数量(列表或字典)
             if (Tag is NbtTagEnum.List or NbtTagEnum.Dictionary)
@@ -363,12 +421,12 @@ public class NbtTag
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.Write(" = ");
             Console.ForegroundColor = tagColor;
-            var valueString = _value switch
+            var valueString = Value switch
             {
                 null => "",
-                string => _value.ToString(),
+                string => Value.ToString(),
                 IEnumerable enumerable => "[ " + string.Join(", ", enumerable.Cast<object>()) + " ]",
-                _ => _value.ToString()
+                _ => Tag is NbtTagEnum.Float or NbtTagEnum.Double ? _floatValueTemp : Value.ToString()
             };
             valueString ??= "";
             Console.WriteLine(valueString.Length <= 50 ? valueString : valueString[..50] + " ...");
