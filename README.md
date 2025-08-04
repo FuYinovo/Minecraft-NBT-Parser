@@ -1,6 +1,6 @@
 # Introduction
 
-This is a tool that helps loading, creating & editing Minecraft NBT files in C# projects.
+A tool that helps loading, creating & editing Minecraft NBT files in C# projects.
 
 # Process
 
@@ -27,10 +27,10 @@ public static byte[] ReadBytes(string path)
     }
 ```
 
-2.New a **NbtParser** then use **Parse()**
+2. New a **NbtParser** then use **Parse()**
 
 ```Cs
-using NBT_Parser
+using NBT_Parser.Class
 // Tip: In bedrock Edition, "isBigEndian" should be false, and begins at 8
 var treeTag = new NbtParser().Parse(bytes, true, 0);
 
@@ -61,7 +61,7 @@ Here are public attributes of **NbtTag**
 public readonly NbtTagEnum Tag;
 public readonly List<NbtTag> Children;
 public readonly NbtTagEnum ChildrenTag;
-public string? Name;
+public string? Name; // Elements in a List-Tag have no name
 public object? Value; // Dictionary & List have no value, only children
 ```
 
