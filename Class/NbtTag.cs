@@ -1,5 +1,4 @@
-﻿using System.Buffers.Binary;
-using System.Collections;
+﻿using System.Collections;
 using System.Text;
 using NBT_Parser.Enum;
 using NBT_Parser.Record;
@@ -10,15 +9,15 @@ namespace NBT_Parser.Class;
 public class NbtTag
 {
     private readonly bool _isBigEndian;
-    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
-    private bool _isChanged;
-    public string? Name;
-    public object? Value;
-    private string _floatValueTemp = string.Empty;
     public readonly NbtTagEnum ChildrenTag;
     public readonly NbtTagEnum Tag;
+    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
+    private string _floatValueTemp = string.Empty;
+    private bool _isChanged;
     public List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
+    public string? Name;
+    public object? Value;
 
     /// <summary>
     ///     由字节集合构造 NBT 标签
@@ -125,7 +124,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 反序列化
+    ///     反序列化
     /// </summary>
     /// <returns>标签的字节集合</returns>
     private Memory<byte> Deserialize()
@@ -148,7 +147,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 反序列化名称
+    ///     反序列化名称
     /// </summary>
     /// <returns>名称长度段和名称段的字节数组</returns>
     private byte[] DeserializeName()
@@ -168,7 +167,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 为静态负载长度的标签反序列化值
+    ///     为静态负载长度的标签反序列化值
     /// </summary>
     /// <returns>内容的字节数组</returns>
     /// <exception cref="Exception">不是静态负载长度标签</exception>
@@ -181,15 +180,15 @@ public class NbtTag
         if (Tag == NbtTagEnum.Int) valueField = BitConverter.GetBytes((int)Value);
         if (Tag == NbtTagEnum.Short) valueField = BitConverter.GetBytes((short)Value);
         if (Tag == NbtTagEnum.Float) valueField = BitConverter.GetBytes((float)Value);
-        if(Tag == NbtTagEnum.Long)  valueField = BitConverter.GetBytes((long)Value);
-        if(Tag == NbtTagEnum.Double) valueField = BitConverter.GetBytes((double)Value);
+        if (Tag == NbtTagEnum.Long) valueField = BitConverter.GetBytes((long)Value);
+        if (Tag == NbtTagEnum.Double) valueField = BitConverter.GetBytes((double)Value);
 
         if (valueField.Length > 0) return _isBigEndian ? valueField.Reverse().ToArray() : valueField;
         throw new Exception($"反序列化失败: [{Tag}]不是静态负载长度标签!");
     }
 
     /// <summary>
-    /// 为动态负载长度的标签反序列化值
+    ///     为动态负载长度的标签反序列化值
     /// </summary>
     /// <returns>内容的字节数组</returns>
     /// <exception cref="Exception">不是静态动态长度标签</exception>
@@ -251,7 +250,7 @@ public class NbtTag
     }
 
     /// <summary>
-    /// 解析标签值
+    ///     解析标签值
     /// </summary>
     private object ParseValue()
     {

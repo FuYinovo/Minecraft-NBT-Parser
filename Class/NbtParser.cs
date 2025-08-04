@@ -308,6 +308,12 @@ public class NbtParser
         return tagEnum;
     }
 
+    /// <summary>
+    ///     获取一个长度段的内容
+    /// </summary>
+    /// <param name="offset">头部位置</param>
+    /// <param name="fieldSize">字段长度</param>
+    /// <typeparam name="T">字段类型</typeparam>
     private T ConsumeLengthField<T>(ref int offset, int fieldSize) where T : struct
     {
         var bytes = _bytes.AsSpan(offset, fieldSize).ToArray();
