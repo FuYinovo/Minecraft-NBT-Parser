@@ -52,7 +52,6 @@ private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
 treeTag.PrintTree();
 ```
 
-
 ### Get NBT-Tag data
 
 Here are public attributes of **NbtTag**
@@ -68,7 +67,7 @@ public object? Value; // Dictionary & List have no value, only children
 ### Create NBT-Tag
 
 You can easily create NBT-Tag by **NbtTagBuilder** \
-Here is an example 
+Here is an example
 
 ```csharp
 using NBT_Parser.Class;
@@ -82,4 +81,5 @@ var dict = NbtTagBuilder.Dictionary("root", [entities, dim], true);
 ``` 
 
 # Gallery
+
 ![map.nbt](Images/map.nbt.png)

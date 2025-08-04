@@ -74,39 +74,54 @@ public class NbtTag
     /// <summary>
     ///     设置标签名称
     /// </summary>
-    public void SetName(string? name)
+    public NbtTag SetName(string? name)
     {
+        if (IsListDirectElement && name is not null) throw new Exception("列表子元素不允许设置名称!");
         Name = name;
         _isChanged = true;
+        return this;
     }
 
     /// <summary>
     ///     设置标签值
     /// </summary>
     /// <exception cref="InvalidCastException">非法值</exception>
-    public void SetValue(object value)
+    public NbtTag SetValue(object value)
     {
-        var validDataType = NbtGlobal.ByteToInfo[(byte)Tag].dataType;
-        switch (value)
+        var validType = NbtGlobal.ByteToInfo[(byte)Tag].dataType;
+        if (validType is null) throw new Exception($"[{Tag}]应设置子项, 而非值!");
+        var valueType = value.GetType();
+
+        // 场景一：值类型与目标一致
+        if (valueType == validType)
         {
-            case IEnumerable enumerable:
-                // 检查合法性
-                var array = enumerable.Cast<object>().ToArray();
-                if (array.GetType() != validDataType)
-                    throw new InvalidCastException($"[{Tag}]的值不能设为{array.GetType()}!");
-                // 设置值
-                Value = array;
-                break;
-            default:
-                // 检查合法性
-                if (value.GetType() != validDataType)
-                    throw new InvalidCastException($"[{Tag}]的值不能设为{value.GetType()}!");
-                // 设置值
-                Value = value;
-                break;
+            Value = value;
+            _isChanged = true;
+            return this;
         }
 
+        // 场景二：值类型与目标类型不一致
+        var exception = new InvalidCastException($"[{Tag}]的值不能设为[{valueType}]!");
+        try
+        {
+            Value = Tag switch
+            {
+                // 情况一：值可以转换为数组
+                NbtTagEnum.ByteArray => (value as IEnumerable)?.Cast<byte>().ToArray(),
+                NbtTagEnum.IntArray => (value as IEnumerable)?.Cast<int>().ToArray(),
+                NbtTagEnum.LongArray => (value as IEnumerable)?.Cast<long>().ToArray(),
+                // 情况二：值不合法
+                _ => throw exception
+            };
+        }
+        catch (Exception)
+        {
+            throw exception;
+        }
+
+
         _isChanged = true;
+        return this;
     }
 
     /// <summary>
