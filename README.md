@@ -1,19 +1,19 @@
 # Introduction
 
-This is a tool that helps loading & construct tree-structured Minecraft NBT files in C# projects.
+This is a tool that helps loading, creating & editing Minecraft NBT files in C# projects.
 
 # Process
 
 - ✅ Serialize
 - ✅ Construct Tree-structured
-- ⬜ Change
+- ✅ Deserialize
+- ✅ Create
 - ⬜ Delete
-- ⬜ Add
-- ⬜ Deserialize
+- ⬜ Change
 
 # Using
 
-## Print tree-structured
+### Parse NBT File
 
 1. Load NBT file as a **byte Array**
 
@@ -27,15 +27,15 @@ public static byte[] ReadBytes(string path)
     }
 ```
 
-2. New a **NbtParser** then use **Parse()**
+2.New a **NbtParser** then use **Parse()**
 
 ```Cs
 using NBT_Parser
 // Tip: In bedrock Edition, "isBigEndian" should be false, and begins at 8
 var treeTag = new NbtParser().Parse(bytes, true, 0);
 
-// You can use this function to ensure Java or Bedrock edition
 // In bedrock Edition, NBT file start with 2 intgers, the second one is length of NBT file.
+// So we can check if the it equals length of NBT file
 // See more at Minecraft Wiki 
 private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
     {
@@ -46,41 +46,40 @@ private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
     }
 ```
 
-3. Print tree-structured
+3. Why not try it
 
 ```Cs
 treeTag.PrintTree();
 ```
 
-## Get NBT tag data
 
-The **NbtTag** object have 3 public attribute:
+### Get NBT-Tag data
+
+Here are public attributes of **NbtTag**
 
 ```Cs
 public readonly NbtTagEnum Tag;
 public readonly List<NbtTag> Children;
 public readonly NbtTagEnum ChildrenTag;
+public string? Name;
+public object? Value; // Dictionary & List have no value, only children
 ```
 
-and 2 public functions:
+### Create NBT-Tag
 
-```Cs
-public string GetValue()
-public string GetName()
-```
-
-So you can easily get data like this:
+You can easily create NBT-Tag by **NbtTagBuilder** \
+Here is an example 
 
 ```csharp
-nbtTag.Children[0].GetName();
-nbtTag.Children[0].GetValue();
-```
+using NBT_Parser.Class;
 
-# Examples
+var pos = NbtTagBuilder.IntArray("position", [-41, 30, 222], true);
+var id = NbtTagBuilder.Int("pos", 33, true);
+var entity = NbtTagBuilder.Dictionary("root", [pos, id], true);
+var entities = NbtTagBuilder.List("entities", [entity, entity, entity], true);
+var dim = NbtTagBuilder.String("dimension", "minecraft:overworld", true);
+var dict = NbtTagBuilder.Dictionary("root", [entities, dim], true);
+``` 
 
-1. map.nbt (Java)
-   ![](Images/map.nbt.png)
-2. level.dat (Bedrock)
-   ![](Images/level.dat.png)
-3. litematica
-   ![](Images/litematica.png)
+# Gallery
+![map.nbt](Images/map.nbt.png)
