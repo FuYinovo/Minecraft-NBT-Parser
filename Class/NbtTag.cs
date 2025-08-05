@@ -304,6 +304,7 @@ public class NbtTag : ICloneable
         bytes.AddRange(DeserializeName());
         // 3. 负载长度段及负载段
         bytes.AddRange(NbtGlobal.ByteToInfo[(byte)Tag].isDynamic ? DeserializeDynamicValue() : DeserializeConstValue());
+        _isChanged = false;
         return bytes.ToArray();
     }
 
