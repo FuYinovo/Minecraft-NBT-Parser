@@ -8,16 +8,16 @@ namespace NBT_Parser.Class;
 
 public class NbtTag : ICloneable
 {
+    private readonly bool _isBigEndian;
     public readonly NbtTagEnum ChildrenTag;
     public readonly NbtTagEnum Tag;
-    public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
-    public string? Name;
-    public object? Value;
-    internal List<NbtTag> Children;
-    private readonly bool _isBigEndian;
     private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
     private string _floatValueTemp = string.Empty;
     private bool _isChanged;
+    internal List<NbtTag> Children;
+    public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
+    public string? Name;
+    public object? Value;
 
     /// <summary>
     ///     由字节集合构造 NBT 标签
@@ -115,7 +115,7 @@ public class NbtTag : ICloneable
     }
 
     /// <summary>
-    /// 移除子项
+    ///     移除子项
     /// </summary>
     /// <remarks>indexes 不可为空</remarks>
     /// <example>
@@ -160,7 +160,7 @@ public class NbtTag : ICloneable
     }
 
     /// <summary>
-    /// 添加子项
+    ///     添加子项
     /// </summary>
     /// <remarks>indexes 可以为空</remarks>
     /// <example>
@@ -184,7 +184,7 @@ public class NbtTag : ICloneable
     /// <param name="addedZero">[忽略]</param>
     public NbtTag AppendChild(NbtTag child, int[] indexes, int begin = 0, bool addedZero = false)
     {
-        if(!addedZero) indexes = new []{0}.Concat(indexes).ToArray();
+        if (!addedZero) indexes = new[] { 0 }.Concat(indexes).ToArray();
         var index = indexes[begin];
         try
         {

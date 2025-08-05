@@ -51,7 +51,9 @@ private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
 ```Cs
 treeTag.PrintTree();
 ```
+
 ## Basic
+
 ### Get
 
 Here are public attributes of `NbtTag`
@@ -64,7 +66,7 @@ public string? Name; // Elements in a List-Tag have no name
 public object? Value; // Dictionary & List have no value, only children
 ```
 
-### Create 
+### Create
 
 You can easily create NBT-Tag by `NbtTagBuilder`
 
@@ -89,9 +91,11 @@ var dim = builder.String("dimension", "minecraft:overworld");
 var dict = builder.Dictionary("root", [entities, dim]);
 dict.PrintTree(); 
 ``` 
+
 ## Child
- Assume we have a structure like this
- 
+
+Assume we have a structure like this
+
  ```json
  {
    "Data": {
@@ -102,9 +106,8 @@ dict.PrintTree();
    }
  }
  ```
+
 ### Get
-
-
 
 Here is an example to get `Count` of `Item`
 
@@ -113,17 +116,20 @@ Here is an example to get `Count` of `Item`
 var appleCount = Data.GetChild([0, 1]);
 ```
 
+### Append
 
-### Append 
 Here are two examples to append `Type` to `Item`
+
 1. Directly append
+
 ```csharp
 // var Data = ...
 // var newChild = ...
 Data.AppendChild(newChild, [0]) 
 ```        
-        
+
 2. Get parent tag & append
+
 ```csharp
 // var Data = ...
 // var newChild = ...
@@ -131,8 +137,7 @@ var parent = Data.GetChild([0]);
 parent.AppendChild(newChild, [])
 ```    
 
-### Delete 
-
+### Delete
 
 Here is an example to delete `Count` Tag
 
@@ -140,8 +145,6 @@ Here is an example to delete `Count` Tag
 // var Data = ...
 Data.DeleteChild([0, 1])
 ```
-
-
 
 # Gallery
 
