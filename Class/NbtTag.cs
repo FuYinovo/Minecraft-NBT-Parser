@@ -290,7 +290,7 @@ public class NbtTag : ICloneable
     /// <returns>标签的字节集合</returns>
     private Memory<byte> Deserialize()
     {
-        var bytes = new List<byte>();
+        var bytes = new List<byte>(48);
         // 1. 标签ID段
         switch (IsListDirectElement)
         {
@@ -316,7 +316,7 @@ public class NbtTag : ICloneable
     {
         if (Name is null) return [];
 
-        var bytes = new List<byte>();
+        var bytes = new List<byte>(16);
         // 名称长度段
         var nameLength = (short)Name.Length;
         var nameLengthField = BitConverter.GetBytes(nameLength);
@@ -356,7 +356,7 @@ public class NbtTag : ICloneable
     /// <exception cref="Exception">不是静态动态长度标签</exception>
     private byte[] DeserializeDynamicValue()
     {
-        var bytes = new List<byte>();
+        var bytes = new List<byte>(32);
 
         #region 列表标签
 
@@ -590,6 +590,12 @@ public class NbtTag : ICloneable
             }
 
             // 值
+            if (Tag == NbtTagEnum.End)
+            {
+                Console.WriteLine();
+                return;
+            }
+
             var tagColor = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.Write(" = ");

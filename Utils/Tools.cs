@@ -4,7 +4,7 @@ namespace NBT_Parser.Utils;
 
 public static class Tools
 {
-    public static T ReadNumber<T>(byte[] bytes, bool isBigEndian) where T : struct
+    public static T ReadNumber<T>(Span<byte> bytes, bool isBigEndian) where T : struct
     {
         if (typeof(T) == typeof(short))
             return (T)(object)(isBigEndian

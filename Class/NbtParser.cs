@@ -6,7 +6,7 @@ namespace NBT_Parser.Class;
 
 public class NbtParser
 {
-    private byte[] _bytes = [];
+    private Memory<byte> _bytes;
     private bool _isBigEndian;
 
 
@@ -19,7 +19,7 @@ public class NbtParser
     /// <returns>一个树状结构的 <see cref="NbtTag" />  </returns>
     public NbtTag Parse(byte[] bytes, bool isBigEndian, int begin = 0)
     {
-        _bytes = bytes;
+        _bytes = bytes.AsMemory();
         _isBigEndian = isBigEndian;
         var tags = GetTags(begin);
         return ConstructTagTree(ref tags);
@@ -106,7 +106,7 @@ public class NbtParser
     /// <returns>一个 <see cref="NbtTag" /> 列表</returns>
     private List<NbtTag> GetTags(int begin)
     {
-        var list = new List<NbtTag>();
+        var list = new List<NbtTag>(_bytes.Length / 20);
         var offset = begin;
         while (offset < _bytes.Length) list.Add(GetTag(ref offset));
         return list;
@@ -236,7 +236,7 @@ public class NbtParser
     private List<NbtTag> ConsumeListElements(ref int offset, NbtTagEnum elementsTag, int elementsCount)
     {
         // 对于列表<字典>，需要存储字典+结束标签，故2倍容量
-        var elements = new List<NbtTag>(elementsTag == NbtTagEnum.Dictionary ? elementsCount * 2 : elementsCount);
+        var elements = new List<NbtTag>(elementsCount * (elementsTag == NbtTagEnum.Dictionary ? 2 : 1));
         for (var i = 1; i <= elementsCount; i++)
         {
             // 列表<一般标签>的处理
@@ -292,7 +292,7 @@ public class NbtParser
     private NbtTag BuildTag(NbtTagEnum type, int begin, int length, bool isListDirectItem = false,
         NbtTagEnum childrenTag = NbtTagEnum.Unknown, List<NbtTag>? children = null)
     {
-        var bytes = _bytes.AsMemory().Slice(begin, length);
+        var bytes = _bytes.Slice(begin, length);
         return new NbtTag(type, bytes, _isBigEndian, children, childrenTag, isListDirectItem);
     }
 
@@ -303,7 +303,7 @@ public class NbtParser
     /// <returns>标签枚举</returns>
     private NbtTagEnum ConsumeTagEnum(ref int offset)
     {
-        var tagEnum = QueryEnum(_bytes[offset]);
+        var tagEnum = QueryEnum(_bytes.Span[offset]);
         offset++;
         return tagEnum;
     }
@@ -316,7 +316,7 @@ public class NbtParser
     /// <typeparam name="T">字段类型</typeparam>
     private T ConsumeLengthField<T>(ref int offset, int fieldSize) where T : struct
     {
-        var bytes = _bytes.AsSpan(offset, fieldSize).ToArray();
+        var bytes = _bytes.Span.Slice(offset, fieldSize);
         var length = Tools.ReadNumber<T>(bytes, _isBigEndian);
         offset += fieldSize;
         return length;
