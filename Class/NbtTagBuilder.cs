@@ -2,7 +2,7 @@
 
 namespace NBT_Parser.Class;
 
-public class NbtTagBuilder(bool isBigEndian, bool isClone = true)
+public class NbtTagBuilder(bool isBigEndian)
 {
     public NbtTag Byte(string name, byte value)
     {
@@ -41,7 +41,7 @@ public class NbtTagBuilder(bool isBigEndian, bool isClone = true)
 
     public NbtTag List(string name, List<NbtTag> children)
     {
-        return isClone ? CreateTag(CloneChildren(children)) : CreateTag(children);
+        return CreateTag(CloneChildren(children));
 
         NbtTag CreateTag(List<NbtTag> childList)
         {
@@ -59,7 +59,7 @@ public class NbtTagBuilder(bool isBigEndian, bool isClone = true)
 
     public NbtTag Dictionary(string? name, List<NbtTag> children)
     {
-        return isClone ? CreateTag(CloneChildren(children)) : CreateTag(children);
+        return CreateTag(CloneChildren(children));
 
         NbtTag CreateTag(List<NbtTag> childList)
         {

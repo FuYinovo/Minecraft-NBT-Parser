@@ -8,16 +8,16 @@ namespace NBT_Parser.Class;
 
 public class NbtTag : ICloneable
 {
-    private readonly bool _isBigEndian;
     public readonly NbtTagEnum ChildrenTag;
     public readonly NbtTagEnum Tag;
-    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
-    private string _floatValueTemp = string.Empty;
-    private bool _isChanged;
-    public List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
     public string? Name;
     public object? Value;
+    internal List<NbtTag> Children;
+    private readonly bool _isBigEndian;
+    private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
+    private string _floatValueTemp = string.Empty;
+    private bool _isChanged;
 
     /// <summary>
     ///     由字节集合构造 NBT 标签
@@ -71,10 +71,150 @@ public class NbtTag : ICloneable
         _isChanged = true;
     }
 
+    /// <summary>
+    ///     拷贝自身
+    /// </summary>
     public object Clone()
     {
         var childrenCopy = Children.Select(child => (NbtTag)child.Clone()).ToList();
         return new NbtTag(Tag, _isBigEndian, Name, Value, childrenCopy, ChildrenTag, IsListDirectElement);
+    }
+
+    /// <summary>
+    ///     获取子项的引用
+    /// </summary>
+    /// <remarks>indexes 不可为空</remarks>
+    /// <example>
+    ///     假设有结构
+    ///     <code>
+    /// DictA{
+    ///     DictB{ List[Int, Int] }
+    ///     DictC{ IntArray }
+    /// }
+    ///
+    /// </code>
+    ///     若要获取 IntArray 标签
+    ///     <code>
+    /// DictA.GetChild([1, 0])
+    /// </code>
+    /// </example>
+    /// <param name="indexes">索引集合</param>
+    /// <param name="begin">[忽略]</param>
+    public NbtTag GetChild(int[] indexes, int begin = 0)
+    {
+        if (indexes.Length == 0) throw new Exception("获取子项引用时，索引不能为空!");
+        var index = indexes[begin];
+        try
+        {
+            return begin == indexes.Length - 1 ? Children[index] : Children[index].GetChild(indexes, begin + 1);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new Exception($"[{Tag}][{Name}]没有下标为[{index}]的子项!");
+        }
+    }
+
+    /// <summary>
+    /// 移除子项
+    /// </summary>
+    /// <remarks>indexes 不可为空</remarks>
+    /// <example>
+    ///     假设有结构
+    ///     <code>
+    /// DictA{
+    ///     DictB{ List[Int, Int] }
+    ///     DictC{ IntArray }
+    /// }
+    ///
+    /// </code>
+    ///     若要移除 IntArray 标签
+    ///     <code>
+    /// DictA.RemoveChild([1, 0])
+    /// </code>
+    /// </example>
+    /// <returns>自身</returns>
+    /// <param name="indexes">索引集合</param>
+    /// <param name="begin">[忽略]</param>
+    public NbtTag RemoveChild(int[] indexes, int begin = 0)
+    {
+        if (indexes.Length == 0) throw new Exception("删除子项时，索引不能为空!");
+        var index = indexes[begin];
+        try
+        {
+            if (begin == indexes.Length - 1)
+            {
+                if (Tag == NbtTagEnum.End) throw new Exception("不能移除结束标签!");
+                Children.Remove(Children[index]);
+            }
+            else
+            {
+                Children[index].RemoveChild(indexes, begin + 1);
+            }
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new Exception($"[{Tag}][{Name}]没有下标为[{index}]的子项!");
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// 添加子项
+    /// </summary>
+    /// <remarks>indexes 可以为空</remarks>
+    /// <example>
+    ///     假设有结构
+    ///     <code>
+    /// DictA{
+    ///     DictB{ List[Int, Int] }
+    ///     DictC{ IntArray }
+    /// }
+    ///
+    /// </code>
+    ///     若要向 DictC 添加 LongArray 标签
+    ///     <code>
+    /// DictA.AppendChild([1])
+    /// </code>
+    /// </example>
+    /// <returns>自身</returns>
+    /// <param name="child">子项</param>
+    /// <param name="indexes">索引集合</param>
+    /// <param name="begin">[忽略]</param>
+    /// <param name="addedZero">[忽略]</param>
+    public NbtTag AppendChild(NbtTag child, int[] indexes, int begin = 0, bool addedZero = false)
+    {
+        if(!addedZero) indexes = new []{0}.Concat(indexes).ToArray();
+        var index = indexes[begin];
+        try
+        {
+            if (indexes.Length == 0 || begin == indexes.Length - 1) return Append(child);
+            Children[index].AppendChild(child, indexes, begin + 1, true);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new Exception($"[{Tag}][{Name}]没有下标为[{index}]的子项!");
+        }
+
+        return this;
+
+        NbtTag Append(NbtTag childElement)
+        {
+            if (Tag == NbtTagEnum.List) childElement.IsListDirectElement = true;
+            switch (Tag)
+            {
+                case NbtTagEnum.List when childElement.Tag != ChildrenTag:
+                    throw new Exception($"列表<{ChildrenTag}>不能插入{childElement.Tag}元素!");
+                case NbtTagEnum.Dictionary:
+                    Children.Insert(Children.Count - 1, childElement); // 插入到结束标签前
+                    break;
+                default:
+                    Children.Add(childElement);
+                    break;
+            }
+
+            return this;
+        }
     }
 
     /// <summary>
@@ -134,12 +274,12 @@ public class NbtTag : ICloneable
     ///     以自身为根节点，获取自身及所有子元素的字节集合
     /// </summary>
     /// <remarks>可直接保存为 NBT 文件</remarks>
-    public byte[] GetBytesTree()
+    public byte[] GetBytes()
     {
         if (_isChanged) _bytes = Deserialize();
         var bytes = _bytes.ToArray().ToList();
         if (Tag is NbtTagEnum.Dictionary && IsListDirectElement) bytes.Clear();
-        foreach (var child in Children) bytes.AddRange(child.GetBytesTree());
+        foreach (var child in Children) bytes.AddRange(child.GetBytes());
 
         return bytes.ToArray();
     }

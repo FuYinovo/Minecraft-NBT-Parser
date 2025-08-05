@@ -8,12 +8,12 @@ A tool that helps loading, creating & editing Minecraft NBT files in C# projects
 - ✅ Construct Tree-structured
 - ✅ Deserialize
 - ✅ Create
-- ⬜ Delete
+- ✅ Delete
 - ✅ Change
 
 # Using
 
-### Parse NBT File
+### Parse
 
 1. Load NBT file as a `byte[]`
 
@@ -51,8 +51,8 @@ private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
 ```Cs
 treeTag.PrintTree();
 ```
-
-### Get NBT-Tag data
+## Basic
+### Get
 
 Here are public attributes of `NbtTag`
 
@@ -64,7 +64,7 @@ public string? Name; // Elements in a List-Tag have no name
 public object? Value; // Dictionary & List have no value, only children
 ```
 
-### Create NBT-Tag
+### Create 
 
 You can easily create NBT-Tag by `NbtTagBuilder`
 
@@ -87,9 +87,61 @@ var entity = builder.Dictionary(null, [pos, id]);
 var entities = builder.List("entities", [entity, entity, entity]);
 var dim = builder.String("dimension", "minecraft:overworld");
 var dict = builder.Dictionary("root", [entities, dim]);
-
 dict.PrintTree(); 
 ``` 
+## Child
+ Assume we have a structure like this
+ 
+ ```json
+ {
+   "Data": {
+     "Item": {
+       "Name": "Apple",
+       "Count": 64
+     }
+   }
+ }
+ ```
+### Get
+
+
+
+Here is an example to get `Count` of `Item`
+
+```csharp
+// var Data = ....
+var appleCount = Data.GetChild([0, 1]);
+```
+
+
+### Append 
+Here are two examples to append `Type` to `Item`
+1. Directly append
+```csharp
+// var Data = ...
+// var newChild = ...
+Data.AppendChild(newChild, [0]) 
+```        
+        
+2. Get parent tag & append
+```csharp
+// var Data = ...
+// var newChild = ...
+var parent = Data.GetChild([0]);
+parent.AppendChild(newChild, [])
+```    
+
+### Delete 
+
+
+Here is an example to delete `Count` Tag
+
+```csharp
+// var Data = ...
+Data.DeleteChild([0, 1])
+```
+
+
 
 # Gallery
 
