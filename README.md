@@ -9,7 +9,7 @@ A tool that helps loading, creating & editing Minecraft NBT files in C# projects
 - ✅ Deserialize
 - ✅ Create
 - ⬜ Delete
-- ⬜ Change
+- ✅ Change
 
 # Using
 
