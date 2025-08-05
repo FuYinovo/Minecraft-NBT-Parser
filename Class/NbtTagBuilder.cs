@@ -2,74 +2,89 @@
 
 namespace NBT_Parser.Class;
 
-public static class NbtTagBuilder
+public class NbtTagBuilder(bool isBigEndian, bool isClone = true)
 {
-    public static NbtTag Byte(string name, byte value, bool isBigEndian)
+    public NbtTag Byte(string name, byte value)
     {
         return new NbtTag(NbtTagEnum.Byte, isBigEndian, name, value);
     }
 
-    public static NbtTag Short(string name, short value, bool isBigEndian)
+    public NbtTag Short(string name, short value)
     {
         return new NbtTag(NbtTagEnum.Short, isBigEndian, name, value);
     }
 
-    public static NbtTag Int(string name, int value, bool isBigEndian)
+    public NbtTag Int(string name, int value)
     {
         return new NbtTag(NbtTagEnum.Int, isBigEndian, name, value);
     }
 
-    public static NbtTag Long(string name, long value, bool isBigEndian)
+    public NbtTag Long(string name, long value)
     {
         return new NbtTag(NbtTagEnum.Long, isBigEndian, name, value);
     }
 
-    public static NbtTag Float(string name, float value, bool isBigEndian)
+    public NbtTag Float(string name, float value)
     {
         return new NbtTag(NbtTagEnum.Float, isBigEndian, name, value);
     }
 
-    public static NbtTag Double(string name, double value, bool isBigEndian)
+    public NbtTag Double(string name, double value)
     {
         return new NbtTag(NbtTagEnum.Double, isBigEndian, name, value);
     }
 
-    public static NbtTag String(string name, string value, bool isBigEndian)
+    public NbtTag String(string name, string value)
     {
         return new NbtTag(NbtTagEnum.String, isBigEndian, name, value);
     }
 
-    public static NbtTag List(string name, List<NbtTag> children, bool isBigEndian)
+    public NbtTag List(string name, List<NbtTag> children)
     {
-        var firstChildTag = children.First().Tag;
-        foreach (var child in children)
+        return isClone ? CreateTag(CloneChildren(children)) : CreateTag(children);
+
+        NbtTag CreateTag(List<NbtTag> childList)
         {
-            child.IsListDirectElement = true;
-            child.SetName(null); // 列表子元素没有名称
-            if (child.Tag != firstChildTag) throw new Exception($"[{firstChildTag}]列表不允许[{child.Tag}]!");
+            var childTag = childList.First().Tag;
+            foreach (var child in childList)
+            {
+                child.IsListDirectElement = true;
+                child.SetName(null); // 列表子元素没有名称
+                if (child.Tag != childTag) throw new Exception($"[{childTag}]列表不允许[{child.Tag}]!");
+            }
+
+            return new NbtTag(NbtTagEnum.List, isBigEndian, name, null, childList, childTag);
         }
-
-        return new NbtTag(NbtTagEnum.List, isBigEndian, name, null, children, firstChildTag);
     }
 
-    public static NbtTag Dictionary(string name, List<NbtTag> children, bool isBigEndian)
+    public NbtTag Dictionary(string? name, List<NbtTag> children)
     {
-        if (children.Last().Tag != NbtTagEnum.End) children.Add(new NbtTag(NbtTagEnum.End, isBigEndian));
-        return new NbtTag(NbtTagEnum.Dictionary, isBigEndian, name, null, children);
+        return isClone ? CreateTag(CloneChildren(children)) : CreateTag(children);
+
+        NbtTag CreateTag(List<NbtTag> childList)
+        {
+            if (childList.Last().Tag != NbtTagEnum.End) childList.Add(new NbtTag(NbtTagEnum.End, isBigEndian));
+            return new NbtTag(NbtTagEnum.Dictionary, isBigEndian, name, null, childList);
+        }
     }
 
-    public static NbtTag ByteArray(string name, IEnumerable<byte> bytes, bool isBigEndian)
+    public NbtTag ByteArray(string name, IEnumerable<byte> bytes)
     {
         return new NbtTag(NbtTagEnum.ByteArray, isBigEndian, name, bytes.ToArray());
     }
 
-    public static NbtTag IntArray(string name, IEnumerable<int> ints, bool isBigEndian)
+    public NbtTag IntArray(string name, IEnumerable<int> ints)
     {
         return new NbtTag(NbtTagEnum.IntArray, isBigEndian, name, ints.ToArray());
     }
 
-    public static NbtTag LongArray(string name, IEnumerable<long> longs, bool isBigEndian)
+    public NbtTag LongArray(string name, IEnumerable<long> longs)
     {
         return new NbtTag(NbtTagEnum.LongArray, isBigEndian, name, longs.ToArray());
+    }
+
+    private static List<NbtTag> CloneChildren(List<NbtTag> children)
+    {
+        return children.Select(child => (NbtTag)child.Clone()).ToList();
     }
 }

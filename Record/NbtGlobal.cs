@@ -22,7 +22,7 @@ public abstract record NbtGlobal
                 { 5, (NbtTagEnum.Float, 4, false, null, typeof(float)) },
                 { 6, (NbtTagEnum.Double, 8, false, null, typeof(double)) },
                 { 7, (NbtTagEnum.ByteArray, 4, true, 1, typeof(byte[])) },
-                { 8, (NbtTagEnum.String, 2, true, 1, typeof(string[])) },
+                { 8, (NbtTagEnum.String, 2, true, 1, typeof(string)) },
                 { 9, (NbtTagEnum.List, 5, true, null, null) },
                 { 10, (NbtTagEnum.Dictionary, 0, false, null, null) },
                 { 11, (NbtTagEnum.IntArray, 4, true, 4, typeof(int[])) },

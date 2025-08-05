@@ -15,7 +15,7 @@ A tool that helps loading, creating & editing Minecraft NBT files in C# projects
 
 ### Parse NBT File
 
-1. Load NBT file as a **byte Array**
+1. Load NBT file as a `byte[]`
 
 ```Cs
 public static byte[] ReadBytes(string path)
@@ -27,7 +27,7 @@ public static byte[] ReadBytes(string path)
     }
 ```
 
-2. New a **NbtParser** then use **Parse()**
+2. New a `NbtParser` then use `Parse()`
 
 ```Cs
 using NBT_Parser.Class
@@ -54,7 +54,7 @@ treeTag.PrintTree();
 
 ### Get NBT-Tag data
 
-Here are public attributes of **NbtTag**
+Here are public attributes of `NbtTag`
 
 ```Cs
 public readonly NbtTagEnum Tag;
@@ -66,18 +66,29 @@ public object? Value; // Dictionary & List have no value, only children
 
 ### Create NBT-Tag
 
-You can easily create NBT-Tag by **NbtTagBuilder** \
-Here is an example
+You can easily create NBT-Tag by `NbtTagBuilder`
+
+1. New a `NbtTagBuilder`
 
 ```csharp
 using NBT_Parser.Class;
 
-var pos = NbtTagBuilder.IntArray("position", [-41, 30, 222], true);
-var id = NbtTagBuilder.Int("pos", 33, true);
-var entity = NbtTagBuilder.Dictionary("root", [pos, id], true);
-var entities = NbtTagBuilder.List("entities", [entity, entity, entity], true);
-var dim = NbtTagBuilder.String("dimension", "minecraft:overworld", true);
-var dict = NbtTagBuilder.Dictionary("root", [entities, dim], true);
+// The 1st param: bool isBigEndian
+// The 2nd param: bool isClone(clone children or not when create a list or dictionary)
+var builder = new NbtTagBuilder(true, true); 
+```
+
+2. Create NBT-Tags
+
+```csharp
+var pos = builder.IntArray("position", [-64, 128, 255]);
+var id = builder.Int("id", 42);
+var entity = builder.Dictionary(null, [pos, id]);
+var entities = builder.List("entities", [entity, entity, entity]);
+var dim = builder.String("dimension", "minecraft:overworld");
+var dict = builder.Dictionary("root", [entities, dim]);
+
+dict.PrintTree(); 
 ``` 
 
 # Gallery

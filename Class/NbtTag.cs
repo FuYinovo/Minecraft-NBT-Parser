@@ -6,7 +6,7 @@ using NBT_Parser.Utils;
 
 namespace NBT_Parser.Class;
 
-public class NbtTag
+public class NbtTag : ICloneable
 {
     private readonly bool _isBigEndian;
     public readonly NbtTagEnum ChildrenTag;
@@ -69,6 +69,12 @@ public class NbtTag
         Tag = tag;
         IsListDirectElement = isListDirectElement;
         _isChanged = true;
+    }
+
+    public object Clone()
+    {
+        var childrenCopy = Children.Select(child => (NbtTag)child.Clone()).ToList();
+        return new NbtTag(Tag, _isBigEndian, Name, Value, childrenCopy, ChildrenTag, IsListDirectElement);
     }
 
     /// <summary>
@@ -211,7 +217,8 @@ public class NbtTag
     {
         var bytes = new List<byte>();
 
-        // 列表标签
+        #region 列表标签
+
         if (Tag == NbtTagEnum.List)
         {
             var childrenTagField = (byte)ChildrenTag;
@@ -221,7 +228,10 @@ public class NbtTag
             return bytes.ToArray();
         }
 
-        // 非列表标签
+        #endregion 列表标签
+
+        #region 非列表标签
+
         if (Value is null) return [];
         var length = Tag switch
         {
@@ -231,7 +241,13 @@ public class NbtTag
             NbtTagEnum.LongArray => ((long[])Value).Length,
             _ => throw new Exception($"反序列化失败: [{Tag}]不是动态负载长度标签!")
         };
-        var lengthField = BitConverter.GetBytes(length); // 负载长度段
+        // 负载长度段
+        var lengthField = Tag switch
+        {
+            NbtTagEnum.String => BitConverter.GetBytes((short)length), // 防止 int 类型导致长度为 4 字节
+            _ => BitConverter.GetBytes(length)
+        };
+        // 负载段
         var valueField = Tag switch // 负载段
         {
             NbtTagEnum.String => Encoding.UTF8.GetBytes((string)Value),
@@ -244,6 +260,8 @@ public class NbtTag
         bytes.AddRange(valueField);
 
         return bytes.ToArray();
+
+        #endregion 非列表标签
     }
 
     /// <summary>
