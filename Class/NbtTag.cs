@@ -203,14 +203,15 @@ public class NbtTag : ICloneable
             if (Tag == NbtTagEnum.List) childElement.IsListDirectElement = true;
             switch (Tag)
             {
-                case NbtTagEnum.List when childElement.Tag != ChildrenTag:
-                    throw new Exception($"列表<{ChildrenTag}>不能插入{childElement.Tag}元素!");
+                case NbtTagEnum.List:
+                    if( childElement.Tag != ChildrenTag) throw new Exception($"列表<{ChildrenTag}>不能插入{childElement.Tag}元素!");
+                    Children.Add(childElement);
+                    break;
                 case NbtTagEnum.Dictionary:
                     Children.Insert(Children.Count - 1, childElement); // 插入到结束标签前
                     break;
                 default:
-                    Children.Add(childElement);
-                    break;
+                    throw new Exception($"[{Tag}]不允许添加子项!");
             }
 
             return this;
