@@ -56,7 +56,7 @@ treeTag.PrintTree();
 
 ### Get
 
-Here are public attributes of `NbtTag`
+Here are public property of `NbtTag`
 
 ```Cs
 public readonly NbtTagEnum Tag;
