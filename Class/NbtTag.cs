@@ -8,12 +8,13 @@ namespace NBT_Parser.Class;
 
 public class NbtTag : ICloneable
 {
-    private readonly bool _isBigEndian;
+    private static readonly int[] ZeroBeginArray = [0];
     public readonly NbtTagEnum ChildrenTag;
+    public readonly bool IsBigEndian;
     public readonly NbtTagEnum Tag;
     private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
     private string _floatValueTemp = string.Empty;
-    private bool _isChanged;
+    public bool IsRemoved { get; private set; }
     internal List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
     public string? Name;
@@ -33,7 +34,7 @@ public class NbtTag : ICloneable
         _bytes = bytes;
         Children = children ?? [];
         ChildrenTag = childrenTag;
-        _isBigEndian = isBigEndian;
+        IsBigEndian = isBigEndian;
         Tag = tag;
         IsListDirectElement = isListDirectElement;
 
@@ -65,10 +66,9 @@ public class NbtTag : ICloneable
         Value = value;
         Children = children ?? [];
         ChildrenTag = childrenTag;
-        _isBigEndian = isBigEndian;
+        IsBigEndian = isBigEndian;
         Tag = tag;
         IsListDirectElement = isListDirectElement;
-        _isChanged = true;
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public class NbtTag : ICloneable
     public object Clone()
     {
         var childrenCopy = Children.Select(child => (NbtTag)child.Clone()).ToList();
-        return new NbtTag(Tag, _isBigEndian, Name, Value, childrenCopy, ChildrenTag, IsListDirectElement);
+        return new NbtTag(Tag, IsBigEndian, Name, Value, childrenCopy, ChildrenTag, IsListDirectElement);
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ public class NbtTag : ICloneable
     /// <summary>
     ///     移除子项
     /// </summary>
-    /// <remarks>indexes 不可为空</remarks>
+    /// <remarks>indexes 不可为空，此方法仅将 IsRemoved 设为 true</remarks>
     /// <example>
     ///     假设有结构
     ///     <code>
@@ -135,7 +135,7 @@ public class NbtTag : ICloneable
     /// <returns>自身</returns>
     /// <param name="indexes">索引集合</param>
     /// <param name="begin">[忽略]</param>
-    public NbtTag RemoveChild(int[] indexes, int begin = 0)
+    public void RemoveChild(int[] indexes, int begin = 0)
     {
         if (indexes.Length == 0) throw new Exception("删除子项时，索引不能为空!");
         var index = indexes[begin];
@@ -144,7 +144,7 @@ public class NbtTag : ICloneable
             if (begin == indexes.Length - 1)
             {
                 if (Tag == NbtTagEnum.End) throw new Exception("不能移除结束标签!");
-                Children.Remove(Children[index]);
+                Children[index].IsRemoved = true;
             }
             else
             {
@@ -155,8 +155,15 @@ public class NbtTag : ICloneable
         {
             throw new Exception($"[{Tag}][{Name}]没有下标为[{index}]的子项!");
         }
+    }
 
-        return this;
+    /// <summary>
+    /// 移除自身
+    /// </summary>
+    /// <remarks>仅将 IsRemoved 设为 true </remarks>
+    public void RemoveSelf()
+    {
+        IsRemoved = true;
     }
 
     /// <summary>
@@ -184,7 +191,7 @@ public class NbtTag : ICloneable
     /// <param name="addedZero">[忽略]</param>
     public NbtTag AppendChild(NbtTag child, int[] indexes, int begin = 0, bool addedZero = false)
     {
-        if (!addedZero) indexes = new[] { 0 }.Concat(indexes).ToArray();
+        if (!addedZero) indexes = ZeroBeginArray.Concat(indexes).ToArray();
         var index = indexes[begin];
         try
         {
@@ -204,7 +211,8 @@ public class NbtTag : ICloneable
             switch (Tag)
             {
                 case NbtTagEnum.List:
-                    if( childElement.Tag != ChildrenTag) throw new Exception($"列表<{ChildrenTag}>不能插入{childElement.Tag}元素!");
+                    if (childElement.Tag != ChildrenTag)
+                        throw new Exception($"列表<{ChildrenTag}>不能插入{childElement.Tag}元素!");
                     Children.Add(childElement);
                     break;
                 case NbtTagEnum.Dictionary:
@@ -225,7 +233,6 @@ public class NbtTag : ICloneable
     {
         if (IsListDirectElement && name is not null) throw new Exception("列表子元素不允许设置名称!");
         Name = name;
-        _isChanged = true;
         return this;
     }
 
@@ -243,7 +250,6 @@ public class NbtTag : ICloneable
         if (valueType == validType)
         {
             Value = value;
-            _isChanged = true;
             return this;
         }
 
@@ -266,18 +272,17 @@ public class NbtTag : ICloneable
             throw exception;
         }
 
-
-        _isChanged = true;
         return this;
     }
 
     /// <summary>
     ///     以自身为根节点，获取自身及所有子元素的字节集合
     /// </summary>
-    /// <remarks>可直接保存为 NBT 文件</remarks>
+    /// <remarks>IsRemoved 为 true 的 NBT 标签除外</remarks>
     public byte[] GetBytes()
     {
-        if (_isChanged) _bytes = Deserialize();
+        if (IsRemoved) return [];
+        _bytes = Deserialize();
         var bytes = _bytes.ToArray().ToList();
         if (Tag is NbtTagEnum.Dictionary && IsListDirectElement) bytes.Clear();
         foreach (var child in Children) bytes.AddRange(child.GetBytes());
@@ -305,7 +310,6 @@ public class NbtTag : ICloneable
         bytes.AddRange(DeserializeName());
         // 3. 负载长度段及负载段
         bytes.AddRange(NbtGlobal.ByteToInfo[(byte)Tag].isDynamic ? DeserializeDynamicValue() : DeserializeConstValue());
-        _isChanged = false;
         return bytes.ToArray();
     }
 
@@ -321,7 +325,7 @@ public class NbtTag : ICloneable
         // 名称长度段
         var nameLength = (short)Name.Length;
         var nameLengthField = BitConverter.GetBytes(nameLength);
-        bytes.AddRange(_isBigEndian ? nameLengthField.Reverse().ToArray() : nameLengthField);
+        bytes.AddRange(IsBigEndian ? nameLengthField.Reverse().ToArray() : nameLengthField);
         // 名称段
         var nameField = Encoding.UTF8.GetBytes(Name);
         bytes.AddRange(nameField);
@@ -346,7 +350,7 @@ public class NbtTag : ICloneable
         if (Tag == NbtTagEnum.Long) valueField = BitConverter.GetBytes((long)Value);
         if (Tag == NbtTagEnum.Double) valueField = BitConverter.GetBytes((double)Value);
 
-        if (valueField.Length > 0) return _isBigEndian ? valueField.Reverse().ToArray() : valueField;
+        if (valueField.Length > 0) return IsBigEndian ? valueField.Reverse().ToArray() : valueField;
         throw new Exception($"反序列化失败: [{Tag}]不是静态负载长度标签!");
     }
 
@@ -364,9 +368,9 @@ public class NbtTag : ICloneable
         if (Tag == NbtTagEnum.List)
         {
             var childrenTagField = (byte)ChildrenTag;
-            var childrenCountField = BitConverter.GetBytes(Children.Count);
+            var childrenCountField = BitConverter.GetBytes(Children.Count(child => !child.IsRemoved));
             bytes.Add(childrenTagField);
-            bytes.AddRange(_isBigEndian ? childrenCountField.Reverse() : childrenCountField);
+            bytes.AddRange(IsBigEndian ? childrenCountField.Reverse() : childrenCountField);
             return bytes.ToArray();
         }
 
@@ -398,7 +402,7 @@ public class NbtTag : ICloneable
             NbtTagEnum.LongArray => ((long[])Value).SelectMany(BitConverter.GetBytes),
             _ => throw new Exception($"反序列化失败: [{Tag}]不是动态负载长度标签!")
         };
-        bytes.AddRange(_isBigEndian ? lengthField.Reverse() : lengthField); // 大小端序反转
+        bytes.AddRange(IsBigEndian ? lengthField.Reverse() : lengthField); // 大小端序反转
         bytes.AddRange(valueField);
 
         return bytes.ToArray();
@@ -465,8 +469,8 @@ public class NbtTag : ICloneable
 
         var dataLength = info.fieldSize switch
         {
-            2 => Tools.ReadNumber<short>(dataLengthField.ToArray(), _isBigEndian),
-            4 => Tools.ReadNumber<int>(dataLengthField.ToArray(), _isBigEndian),
+            2 => Tools.ReadNumber<short>(dataLengthField.ToArray(), IsBigEndian),
+            4 => Tools.ReadNumber<int>(dataLengthField.ToArray(), IsBigEndian),
             _ => throw new Exception("未知标签!") // 正常不可能报错
         };
 
@@ -490,13 +494,13 @@ public class NbtTag : ICloneable
             case NbtTagEnum.IntArray:
                 var intArray = new int[data.Length / 4];
                 var intSource = data.ToArray();
-                intSource = _isBigEndian ? intSource.Reverse().ToArray() : intSource;
+                intSource = IsBigEndian ? intSource.Reverse().ToArray() : intSource;
                 Buffer.BlockCopy(intSource, 0, intArray, 0, data.Length);
                 return intArray;
             case NbtTagEnum.LongArray:
                 var longArray = new long[data.Length / 8];
                 var longSource = data.ToArray();
-                longSource = _isBigEndian ? longSource.Reverse().ToArray() : longSource;
+                longSource = IsBigEndian ? longSource.Reverse().ToArray() : longSource;
                 Buffer.BlockCopy(longSource, 0, longArray, 0, data.Length);
                 return longArray;
             default:
@@ -524,16 +528,16 @@ public class NbtTag : ICloneable
 
         _floatValueTemp = Tag switch
         {
-            NbtTagEnum.Float => Tools.ReadNumber<float>(data.ToArray(), _isBigEndian).ToString(),
-            NbtTagEnum.Double => Tools.ReadNumber<double>(data.ToArray(), _isBigEndian).ToString(),
+            NbtTagEnum.Float => Tools.ReadNumber<float>(data.ToArray(), IsBigEndian).ToString(),
+            NbtTagEnum.Double => Tools.ReadNumber<double>(data.ToArray(), IsBigEndian).ToString(),
             _ => string.Empty
         };
         if (Tag == NbtTagEnum.Byte) return data[0];
-        if (Tag == NbtTagEnum.Short) return Tools.ReadNumber<short>(data.ToArray(), _isBigEndian);
-        if (Tag == NbtTagEnum.Int) return Tools.ReadNumber<int>(data.ToArray(), _isBigEndian);
-        if (Tag == NbtTagEnum.Float) return Tools.ReadNumber<float>(data.ToArray(), _isBigEndian);
-        if (Tag == NbtTagEnum.Long) return Tools.ReadNumber<long>(data.ToArray(), _isBigEndian);
-        if (Tag == NbtTagEnum.Double) return Tools.ReadNumber<double>(data.ToArray(), _isBigEndian);
+        if (Tag == NbtTagEnum.Short) return Tools.ReadNumber<short>(data.ToArray(), IsBigEndian);
+        if (Tag == NbtTagEnum.Int) return Tools.ReadNumber<int>(data.ToArray(), IsBigEndian);
+        if (Tag == NbtTagEnum.Float) return Tools.ReadNumber<float>(data.ToArray(), IsBigEndian);
+        if (Tag == NbtTagEnum.Long) return Tools.ReadNumber<long>(data.ToArray(), IsBigEndian);
+        if (Tag == NbtTagEnum.Double) return Tools.ReadNumber<double>(data.ToArray(), IsBigEndian);
         throw new Exception("非静态负载长度");
     }
 
@@ -544,7 +548,7 @@ public class NbtTag : ICloneable
     {
         if (IsListDirectElement) return 0; // 列表元素没有名称
         var nameLengthField = _bytes.Span.Slice(1, NbtGlobal.NameLengthFieldSize);
-        return Tools.ReadNumber<short>(nameLengthField.ToArray(), _isBigEndian);
+        return Tools.ReadNumber<short>(nameLengthField.ToArray(), IsBigEndian);
     }
 
     /// <summary>
