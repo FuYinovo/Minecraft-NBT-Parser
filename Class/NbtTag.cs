@@ -14,7 +14,6 @@ public class NbtTag : ICloneable
     public readonly NbtTagEnum Tag;
     private Memory<byte> _bytes; // 不包含子元素 (终止于「首个子元素头部 - 1」)
     private string _floatValueTemp = string.Empty;
-    public bool IsRemoved { get; private set; }
     internal List<NbtTag> Children;
     public bool IsListDirectElement; // 便于构造树形结构，避免单元素(伪)列表)
     public string? Name;
@@ -70,6 +69,8 @@ public class NbtTag : ICloneable
         Tag = tag;
         IsListDirectElement = isListDirectElement;
     }
+
+    public bool IsRemoved { get; private set; }
 
     /// <summary>
     ///     拷贝自身
@@ -158,7 +159,7 @@ public class NbtTag : ICloneable
     }
 
     /// <summary>
-    /// 移除自身
+    ///     移除自身
     /// </summary>
     /// <remarks>仅将 IsRemoved 设为 true </remarks>
     public void RemoveSelf()

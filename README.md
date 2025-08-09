@@ -13,7 +13,7 @@ A tool that helps loading, creating & editing Minecraft NBT files in C# projects
 
 # Using
 
-### Parse
+## Parse
 
 1. Load NBT file as a `byte[]`
 
@@ -52,18 +52,21 @@ private static (int begin, bool isBigEndian) GetNbtBytesInfo(byte[] bytes)
 treeTag.PrintTree();
 ```
 
-## Basic
+## Self
 
 ### Get
 
-Here are public property of `NbtTag`
+Here are public properties of `NbtTag`
 
 ```Cs
+public readonly NbtTagEnum ChildrenTag;
+public readonly bool IsBigEndian;
+public bool IsRemoved;
+public string? Name; // Elements in a List-Tag have no name
+public object? Value; // Dictionary & List have no value, only children
 public readonly NbtTagEnum Tag;
 public readonly List<NbtTag> Children;
 public readonly NbtTagEnum ChildrenTag;
-public string? Name; // Elements in a List-Tag have no name
-public object? Value; // Dictionary & List have no value, only children
 ```
 
 ### Create
@@ -76,8 +79,7 @@ You can easily create NBT-Tag by `NbtTagBuilder`
 using NBT_Parser.Class;
 
 // The 1st param: bool isBigEndian
-// The 2nd param: bool isClone(clone children or not when create a list or dictionary)
-var builder = new NbtTagBuilder(true, true); 
+var builder = new NbtTagBuilder(true); 
 ```
 
 2. Create NBT-Tags
@@ -91,6 +93,38 @@ var dim = builder.String("dimension", "minecraft:overworld");
 var dict = builder.Dictionary("root", [entities, dim]);
 dict.PrintTree(); 
 ``` 
+
+### Delete
+
+Here's an example to delete an NBT-Tag \
+Actually it won't be deleted, but property `IsRemoved` will be `true`
+
+```csharp
+tag.RemoveSelf();
+```
+
+### SetName
+
+Here's an example to rename an NBT-Tag
+
+```csharp
+var tag = builder.String("nameA", "str");
+tag.SetName("nameB");
+```
+
+### SetValue
+
+Here are two examples to set another value for an NBT-Tag
+
+```csharp
+var tagA = builder.Int("number", 24);
+tagA.SetValue(64);    // OK
+tagA.SetValue("64");  // InvalidCastException
+
+var tagB = builder.IntArray("numbers", [1, 2, 3]);
+tagB.SetValue([10, 20, 30])                // OK;
+tagB.SetValue(new List<int>(){10, 20, 30}) // OK;
+```
 
 ## Child
 
@@ -112,7 +146,6 @@ Assume we have a structure like this
 Here is an example to get `Count` of `Item`
 
 ```csharp
-// var Data = ....
 var appleCount = Data.GetChild([0, 1]);
 ```
 
@@ -123,16 +156,12 @@ Here are two examples to append `Type` to `Item`
 1. Directly append
 
 ```csharp
-// var Data = ...
-// var newChild = ...
 Data.AppendChild(newChild, [0]) 
 ```        
 
 2. Get parent tag & append
 
 ```csharp
-// var Data = ...
-// var newChild = ...
 var parent = Data.GetChild([0]);
 parent.AppendChild(newChild, [])
 ```    
@@ -142,7 +171,6 @@ parent.AppendChild(newChild, [])
 Here is an example to delete `Count` Tag
 
 ```csharp
-// var Data = ...
 Data.DeleteChild([0, 1])
 ```
 
