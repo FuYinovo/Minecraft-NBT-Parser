@@ -39,21 +39,20 @@ public class NbtTagBuilder(bool isBigEndian)
         return new NbtTag(NbtTagEnum.String, isBigEndian, name, value);
     }
 
-    public NbtTag List(string name, List<NbtTag> children)
+    public NbtTag List(string name, List<NbtTag> children, NbtTagEnum childrenTag)
     {
         return CreateTag(CloneChildren(children));
 
         NbtTag CreateTag(List<NbtTag> childList)
         {
-            var childTag = childList.First().Tag;
             foreach (var child in childList)
             {
                 child.IsListDirectElement = true;
                 child.SetName(null); // 列表子元素没有名称
-                if (child.Tag != childTag) throw new Exception($"[{childTag}]列表不允许[{child.Tag}]!");
+                if (child.Tag != childrenTag) throw new Exception($"[{childrenTag}]列表不允许[{child.Tag}]!");
             }
 
-            return new NbtTag(NbtTagEnum.List, isBigEndian, name, null, childList, childTag);
+            return new NbtTag(NbtTagEnum.List, isBigEndian, name, null, childList, childrenTag);
         }
     }
 
