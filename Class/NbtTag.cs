@@ -382,7 +382,7 @@ public class NbtTag : ICloneable
         if (Value is null) return [];
         var length = Tag switch
         {
-            NbtTagEnum.String => (short)((string)Value).Length,
+            NbtTagEnum.String => (short)Encoding.UTF8.GetBytes((string)Value).Length,
             NbtTagEnum.ByteArray => ((byte[])Value).Length,
             NbtTagEnum.IntArray => ((int[])Value).Length,
             NbtTagEnum.LongArray => ((long[])Value).Length,
