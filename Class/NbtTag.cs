@@ -320,7 +320,7 @@ public class NbtTag : ICloneable
     /// <returns>名称长度段和名称段的字节数组</returns>
     private byte[] DeserializeName()
     {
-        if (Name is null) return [];
+        if (Name is null || IsListDirectElement) return [];
 
         var bytes = new List<byte>(16);
         // 名称长度段
