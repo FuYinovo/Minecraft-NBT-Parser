@@ -1,4 +1,5 @@
-﻿using NBT_Parser.Enum;
+﻿using System.Diagnostics;
+using NBT_Parser.Enum;
 using NBT_Parser.Record;
 using NBT_Parser.Utils;
 
